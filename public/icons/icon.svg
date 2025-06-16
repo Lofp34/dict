@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fond -->
+  <rect width="180" height="180" rx="40" fill="#4F46E5"/>
+  
+  <!-- Texte stylisé -->
+  <text x="90" y="110" font-family="Arial" font-size="80" font-weight="bold" fill="white" text-anchor="middle">D</text>
+  
+  <!-- Étoile magique -->
+  <path d="M90 30 L95 45 L110 45 L100 55 L105 70 L90 60 L75 70 L80 55 L70 45 L85 45 Z" fill="white"/>
+</svg> 
