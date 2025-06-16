@@ -1,0 +1,8 @@
+{
+  "name": "Dictée Magique",
+  "description": "Une application élégante et simple pour transcrire votre voix en texte avec une haute précision. Parfait pour une prise de notes vocale rapide et efficace sur votre iPhone. Appuyez sur le microphone pour commencer à dicter, copiez le texte ou effacez-le en un clic.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}
