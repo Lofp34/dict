@@ -113,6 +113,18 @@ const SendIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const ExpandIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+  </svg>
+);
+
+const MinimizeIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
 const App: React.FC = () => {
   const [transcript, setTranscript] = useState<string>('');
   const [interimTranscript, setInterimTranscript] = useState<string>('');
@@ -127,6 +139,9 @@ const App: React.FC = () => {
   // États pour le bouton flottant
   const [isFloatingListening, setIsFloatingListening] = useState<boolean>(false);
   const [activeInputId, setActiveInputId] = useState<string | null>(null);
+  
+  // États pour le mode plein écran du chat
+  const [fullscreenChat, setFullscreenChat] = useState<{ noteId: string; note: SavedNote } | null>(null);
 
   const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
   const isStoppingInternallyRef = useRef<boolean>(false);
@@ -888,6 +903,15 @@ Réponds UNIQUEMENT avec un objet JSON valide :
     setActiveInputId(null);
   }, []);
 
+  // Fonction pour ouvrir le chat en plein écran
+  const openFullscreenChat = useCallback((note: SavedNote) => {
+    setFullscreenChat({ noteId: note.id, note });
+  }, []);
+
+  // Fonction pour fermer le chat plein écran
+  const closeFullscreenChat = useCallback(() => {
+    setFullscreenChat(null);
+  }, []);
 
 
   return (
@@ -1149,6 +1173,24 @@ Réponds UNIQUEMENT avec un objet JSON valide :
                         {!note.isProcessing && (
                           <div className="mt-3 pt-3 border-t border-slate-200">
                             <div className="bg-slate-50 rounded-lg p-3 max-h-48 overflow-y-auto">
+                              {/* En-tête du chat avec bouton plein écran */}
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center space-x-2">
+                                  <ChatIcon className="w-4 h-4 text-slate-400" />
+                                  <span className="text-xs font-medium text-slate-600">Chat avec l'IA</span>
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openFullscreenChat(note);
+                                  }}
+                                  className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded transition-colors"
+                                  title="Ouvrir en plein écran"
+                                >
+                                  <ExpandIcon className="w-4 h-4" />
+                                </button>
+                              </div>
+
                               {/* Messages existants */}
                               {note.chatMessages && note.chatMessages.length > 0 ? (
                                 <div className="space-y-2 mb-3">
@@ -1319,6 +1361,171 @@ Réponds UNIQUEMENT avec un objet JSON valide :
           <MicrophoneIcon className="w-7 h-7 sm:w-6 sm:h-6 text-white" />
         </button>
       </div>
+
+      {/* Modal de chat plein écran */}
+      {fullscreenChat && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col">
+            {/* En-tête de la modal */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <div className="flex items-center space-x-3">
+                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <h3 className="text-lg font-semibold text-slate-800">
+                  Chat avec l'IA - {fullscreenChat.note.title}
+                </h3>
+                <button
+                  onClick={closeFullscreenChat}
+                  className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="Fermer le chat"
+                >
+                  <MinimizeIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Zone de messages */}
+            <div className="flex-1 p-6 overflow-y-auto bg-slate-50">
+              <div className="max-w-3xl mx-auto space-y-4">
+                {/* Messages existants */}
+                {fullscreenChat.note.chatMessages && fullscreenChat.note.chatMessages.length > 0 ? (
+                  fullscreenChat.note.chatMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-2xl px-4 py-3 rounded-2xl text-sm relative ${
+                          msg.isUser
+                            ? 'bg-indigo-500 text-white'
+                            : 'bg-white text-slate-700 border border-slate-200 shadow-sm'
+                        }`}
+                      >
+                        <div className="prose prose-sm max-w-none">
+                          {msg.content.split('\n').map((line, lineIndex) => {
+                            // Titres
+                            if (line.startsWith('## ')) {
+                              return <h3 key={lineIndex} className="text-base font-semibold mt-3 mb-2">{line.substring(3)}</h3>;
+                            }
+                            if (line.startsWith('### ')) {
+                              return <h4 key={lineIndex} className="text-sm font-semibold mt-3 mb-2">{line.substring(4)}</h4>;
+                            }
+                            if (line.startsWith('# ')) {
+                              return <h2 key={lineIndex} className="text-lg font-bold mt-3 mb-2">{line.substring(2)}</h2>;
+                            }
+                            
+                            // Listes
+                            if (line.startsWith('- ') || line.startsWith('* ')) {
+                              return <li key={lineIndex} className="ml-4">{line.substring(2)}</li>;
+                            }
+                            if (line.match(/^\d+\. /)) {
+                              return <li key={lineIndex} className="ml-4">{line.replace(/^\d+\. /, '')}</li>;
+                            }
+                            
+                            // Texte en gras et italique
+                            let processedLine = line;
+                            processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                            processedLine = processedLine.replace(/\*(.*?)\*/g, '<em>$1</em>');
+                            
+                            // Ligne vide
+                            if (line.trim() === '') {
+                              return <br key={lineIndex} />;
+                            }
+                            
+                            // Texte normal
+                            return <p key={lineIndex} className="mb-2" dangerouslySetInnerHTML={{ __html: processedLine }} />;
+                          })}
+                        </div>
+                        <div className="flex justify-between items-center mt-3">
+                          <p className={`text-xs ${msg.isUser ? 'text-indigo-100' : 'text-slate-400'}`}>
+                            {formatTimestamp(msg.timestamp)}
+                          </p>
+                          {/* Bouton de copie pour les réponses IA */}
+                          {!msg.isUser && msg.content && (
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(msg.content);
+                                showNotification("Réponse copiée !");
+                              }}
+                              className="ml-2 text-slate-500 hover:text-slate-700 transition-colors"
+                              title="Copier la réponse"
+                            >
+                              <CopyIcon className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <ChatIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-500 text-lg">
+                      Posez une question à l'IA sur cette note...
+                    </p>
+                    <p className="text-slate-400 text-sm mt-2">
+                      L'IA vous aidera à analyser et développer vos idées
+                    </p>
+                  </div>
+                )}
+
+                {/* Indicateur de streaming pour le chat plein écran */}
+                {(isListening || isFloatingListening || interimTranscript) && activeInputId === `chat-${fullscreenChat.note.id}` && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4" aria-live="polite">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <div className={`w-2 h-2 rounded-full ${(isListening || isFloatingListening) ? 'bg-blue-500 animate-pulse' : 'bg-blue-400'}`}></div>
+                      <span className="text-blue-700 font-medium">
+                        {(isListening || isFloatingListening) ? 'Écoute en cours...' : 'Traitement...'}
+                      </span>
+                    </div>
+                    {interimTranscript && (
+                      <div className="text-blue-600 italic">
+                        <span className="text-blue-500">Streaming : </span>
+                        {interimTranscript}
+                        <span className="inline-block w-1 h-4 bg-blue-400 ml-1 animate-pulse"></span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Zone de saisie */}
+            <div className="p-6 border-t border-slate-200 bg-white">
+              <div className="max-w-3xl mx-auto">
+                <div className="flex space-x-3">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={chatInputs[fullscreenChat.note.id] || ''}
+                      onChange={(e) => handleChatInputChange(fullscreenChat.note.id, e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSendChatMessage(fullscreenChat.note.id)}
+                      onFocus={() => handleInputFocus(`chat-${fullscreenChat.note.id}`)}
+                      onBlur={handleInputBlur}
+                      placeholder="Posez une question à l'IA sur cette note..."
+                      className="w-full text-base pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      autoFocus
+                    />
+                    <ChatIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  </div>
+                  <button
+                    onClick={() => handleSendChatMessage(fullscreenChat.note.id)}
+                    disabled={!chatInputs[fullscreenChat.note.id]?.trim()}
+                    className="px-6 py-3 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+                    title="Envoyer le message"
+                  >
+                    <SendIcon className="w-5 h-5" />
+                    <span className="hidden sm:inline">Envoyer</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
