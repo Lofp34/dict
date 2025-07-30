@@ -1,0 +1,77 @@
+# Fonctionnalité d'Export des Notes
+
+## Contexte
+L'application permet d'exporter l'intégralité du contenu d'une note (texte original, version enrichie par l'IA, suggestions et historique du chat) en format texte structuré.
+
+## Implémentation
+
+### Fonction d'Export
+Dans [App.tsx](mdc:App.tsx), la fonction `handleExportNote` génère un contenu structuré :
+
+```typescript
+const handleExportNote = useCallback((note: SavedNote) => {
+  // Construction du contenu exporté avec sections structurées
+  let exportContent = '';
+  
+  // En-tête avec métadonnées
+  exportContent += `=== NOTE EXPORTÉE ===\n`;
+  exportContent += `Titre: ${note.title}\n`;
+  exportContent += `Date: ${note.timestamp.toLocaleString('fr-FR')}\n`;
+  exportContent += `Type: ${note.type || 'note'}\n\n`;
+  
+  // Note originale dictée par l'utilisateur
+  exportContent += `--- NOTE ORIGINALE ---\n`;
+  exportContent += `${note.originalText}\n\n`;
+  
+  // Version enrichie par l'IA
+  exportContent += `--- NOTE ENRICHIE PAR L'IA ---\n`;
+  exportContent += `${note.structuredText}\n\n`;
+  
+  // Suggestions d'approfondissement
+  exportContent += `--- SUGGESTIONS D'APPROFONDISSEMENT ---\n`;
+  note.suggestions.forEach((suggestion, index) => {
+    exportContent += `${index + 1}. ${suggestion}\n`;
+  });
+  
+  // Historique complet du chat
+  exportContent += `--- HISTORIQUE DU CHAT AVEC L'IA ---\n`;
+  note.chatMessages.forEach((message) => {
+    const timestamp = message.timestamp.toLocaleString('fr-FR');
+    const role = message.isUser ? 'Utilisateur' : 'IA Gemini';
+    exportContent += `[${timestamp}] ${role}:\n`;
+    exportContent += `${message.content}\n\n`;
+  });
+  
+  // Copie dans le presse-papiers
+  navigator.clipboard.writeText(exportContent);
+});
+```
+
+### Interface Utilisateur
+- **Bouton d'export** : Icône verte (flèche vers le bas) dans chaque note
+- **Disponibilité** : Visible uniquement quand la note n'est plus en cours de traitement
+- **Localisation** : Dans les cartes de notes et dans la modal de chat plein écran
+
+### Format d'Export
+Le contenu exporté est structuré en sections claires :
+1. **En-tête** : Métadonnées de la note (titre, date, type)
+2. **Note originale** : Texte dicté par l'utilisateur
+3. **Note enrichie** : Version structurée par l'IA
+4. **Suggestions** : Liste numérotée des suggestions d'approfondissement
+5. **Chat** : Historique complet avec timestamps et rôles
+
+### Utilisation
+1. Cliquer sur l'icône d'export (🔄) sur une note
+2. Le contenu complet est copié dans le presse-papiers
+3. Notification de confirmation affichée
+4. Le contenu peut être collé dans n'importe quel éditeur de texte
+
+## Avantages
+- **Simplicité** : Une seule action pour exporter tout le contenu
+- **Complétude** : Inclut tous les éléments (original, enrichi, suggestions, chat)
+- **Format lisible** : Structure claire avec sections délimitées
+- **Compatibilité** : Format texte compatible avec tous les éditeurs
+description:
+globs:
+alwaysApply: false
+---

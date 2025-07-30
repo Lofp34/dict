@@ -1,0 +1,72 @@
+# Visualisation des Pensées du Modèle Gemini
+
+## Contexte
+L'application de dictée utilise l'API Google Gemini pour enrichir les notes des utilisateurs. La fonctionnalité de visualisation des pensées permet de voir en temps réel comment le modèle analyse et traite le contenu dicté.
+
+## Implémentation
+
+### Configuration de l'API
+Dans [App.tsx](mdc:App.tsx), la fonction `processNoteWithGemini` utilise la configuration `thinkingConfig` pour activer la visualisation des pensées :
+
+```typescript
+const response = await ai.models.generateContent({
+  model: "gemini-2.5-pro",
+  contents: prompt,
+  config: {
+    systemInstruction: "Tu es un expert en stratégie commerciale et développement de produits...",
+    thinkingConfig: {
+      includeThoughts: true,
+    },
+  },
+});
+```
+
+### Traitement des Réponses
+Le code traite les différentes parties de la réponse :
+- `part.thought` : Contient la réflexion du modèle
+- `part.text` : Contient la réponse finale
+
+### Interface Utilisateur
+Une fenêtre modale affiche la réflexion en temps réel pendant le traitement de la note, permettant à l'utilisateur de voir le processus de pensée de l'IA.
+
+## Code de Référence Google
+```typescript
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({});
+
+async function main() {
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-pro",
+    contents: "What is the sum of the first 50 prime numbers?",
+    config: {
+      thinkingConfig: {
+        includeThoughts: true,
+      },
+    },
+  });
+
+  for (const part of response.candidates[0].content.parts) {
+    if (!part.text) {
+      continue;
+    }
+    else if (part.thought) {
+      console.log("Thoughts summary:");
+      console.log(part.text);
+    }
+    else {
+      console.log("Answer:");
+      console.log(part.text);
+    }
+  }
+}
+
+main();
+```
+
+## Utilisation
+Cette fonctionnalité s'active automatiquement lors du traitement de la première note de l'utilisateur et affiche une fenêtre modale avec la réflexion du modèle en temps réel.
+description:
+globs:
+alwaysApply: false
+---

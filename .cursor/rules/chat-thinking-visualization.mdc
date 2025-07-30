@@ -1,0 +1,93 @@
+# Visualisation des Pensées dans le Chat
+
+## Contexte
+La visualisation des pensées du modèle Gemini est maintenant intégrée directement dans le chat de l'application, offrant une expérience plus fluide et naturelle.
+
+## Implémentation
+
+### Interface ChatMessage étendue
+Dans [App.tsx](mdc:App.tsx), l'interface `ChatMessage` a été étendue :
+
+```typescript
+interface ChatMessage {
+  id: string;           // Identifiant unique du message
+  content: string;      // Contenu textuel du message
+  isUser: boolean;      // true = message de l'utilisateur, false = message de l'IA
+  timestamp: Date;      // Date et heure d'envoi du message
+  isThinking?: boolean; // true = message de réflexion en cours, false = message normal
+}
+```
+
+### Simulation de Réflexion Progressive
+La fonction `handleSendChatMessage` simule un processus de réflexion en 4 étapes :
+
+```typescript
+// Simulation de progression de la réflexion
+const thinkingSteps = [
+  "🤔 Je réfléchis à votre question...",
+  "🧠 J'analyse le contexte de votre note...",
+  "💭 Je formule une réponse appropriée...",
+  "✨ Je finalise ma réponse..."
+];
+
+for (let i = 0; i < thinkingSteps.length; i++) {
+  await new Promise(resolve => setTimeout(resolve, 800)); // Délai entre les étapes
+  
+  setSavedNotes(prev => prev.map(note => 
+    note.id === noteId 
+      ? { 
+          ...note, 
+          chatMessages: note.chatMessages?.map(msg => 
+            msg.id === thinkingMessage.id 
+              ? { ...msg, content: thinkingSteps[i] }
+              : msg
+          ) || []
+        }
+      : note
+  ));
+}
+```
+
+### Styles Visuels
+Les messages de réflexion ont un style distinctif :
+
+```typescript
+className={`max-w-xs px-3 py-2 rounded-lg text-xs relative ${
+  msg.isUser
+    ? 'bg-indigo-500 text-white'
+    : msg.isThinking
+    ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200 animate-pulse'
+    : 'bg-white text-slate-700 border border-slate-200'
+}`}
+```
+
+## Caractéristiques
+
+### Expérience Utilisateur
+- **Progression naturelle** : Les étapes de réflexion s'affichent progressivement
+- **Feedback visuel** : Animation de pulsation et couleurs distinctives
+- **Intégration fluide** : Les pensées apparaissent comme des messages normaux dans le chat
+- **Pas d'interruption** : L'utilisateur peut continuer à utiliser l'interface
+
+### Étapes de Réflexion
+1. **🤔 Je réfléchis à votre question...** - Initialisation
+2. **🧠 J'analyse le contexte de votre note...** - Analyse du contenu
+3. **💭 Je formule une réponse appropriée...** - Préparation de la réponse
+4. **✨ Je finalise ma réponse...** - Finalisation
+
+### Avantages
+- **Plus engageant** : L'utilisateur voit le processus de pensée
+- **Moins frustrant** : Pas d'attente silencieuse
+- **Plus naturel** : Intégré dans le flux de conversation
+- **Plus informatif** : Montre les étapes de traitement
+
+## Utilisation
+1. L'utilisateur pose une question dans le chat
+2. Un message de réflexion apparaît avec animation
+3. Les étapes de réflexion se succèdent progressivement
+4. La réponse finale remplace le message de réflexion
+5. Le processus est transparent et fluide
+description:
+globs:
+alwaysApply: false
+---
