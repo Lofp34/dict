@@ -129,7 +129,7 @@ const App: React.FC = () => {
   const [chatInputs, setChatInputs] = useState<{ [noteId: string]: string }>({});
   
   // États pour le bouton flottant
-  const [floatingButtonPosition, setFloatingButtonPosition] = useState<FloatingButtonPosition>({ x: 20, y: 20 });
+  const [floatingButtonPosition, setFloatingButtonPosition] = useState<FloatingButtonPosition>({ x: window.innerWidth - 80, y: window.innerHeight - 80 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isFloatingListening, setIsFloatingListening] = useState<boolean>(false);
@@ -903,8 +903,8 @@ Réponds UNIQUEMENT avec un objet JSON valide :
     const newY = e.clientY - dragOffset.y;
     
     // Limiter aux bords de l'écran
-    const maxX = window.innerWidth - 60; // Largeur du bouton
-    const maxY = window.innerHeight - 60; // Hauteur du bouton
+    const maxX = window.innerWidth - 70; // Largeur du bouton + marge
+    const maxY = window.innerHeight - 70; // Hauteur du bouton + marge
     
     setFloatingButtonPosition({
       x: Math.max(0, Math.min(newX, maxX)),
@@ -1001,82 +1001,65 @@ Réponds UNIQUEMENT avec un objet JSON valide :
           aria-label="Texte de la dictée"
           rows={10} // Initial rows, actual height controlled by flex layout
         />
-        {/* Indicateur de streaming pour la zone principale */}
-        {(isListening || isFloatingListening || interimTranscript) && activeInputId === 'main' && (
-          <div className="p-6 sm:p-8 pt-0 border-t border-slate-200 bg-slate-50/50" aria-live="polite">
-            <div className="flex items-center space-x-2 mb-2">
-              <div className={`w-2 h-2 rounded-full ${(isListening || isFloatingListening) ? 'bg-red-500 animate-pulse' : 'bg-slate-400'}`}></div>
-              <span className="text-sm font-medium text-slate-600">
-                {(isListening || isFloatingListening) ? 'Écoute en cours...' : 'Traitement...'}
-              </span>
-            </div>
+        {(isListening || isFloatingListening || interimTranscript) && (
+          <div className="p-6 sm:p-8 pt-0 text-slate-500" aria-live="polite">
+            {isListening && !interimTranscript && !transcript && <p className="italic">Écoute en cours...</p>}
             {interimTranscript && (
-              <div className="text-slate-600 italic">
-                <span className="text-slate-400">Streaming : </span>
+              <>
+                {(transcript && !/\s$/.test(transcript) && interimTranscript ? ' ' : '')}
                 {interimTranscript}
-                <span className="inline-block w-1 h-4 bg-slate-400 ml-1 animate-pulse"></span>
-              </div>
+              </>
             )}
           </div>
         )}
       </div>
 
 
-      <div className="flex flex-col items-center justify-center space-y-4 w-full max-w-md pb-4">
-        {/* Première ligne : Effacer et Microphone */}
-        <div className="flex items-center justify-center space-x-4">
+      {/* Barre d'actions en bas */}
+      <div className="w-full max-w-4xl mt-6 mb-8">
+        <div className="flex items-center justify-center space-x-3">
+          {/* Effacer */}
           <IconButton
             onClick={handleClear}
-            icon={<TrashIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
-            label="Effacer le texte"
-            className="bg-white/60 backdrop-blur-sm text-rose-600 hover:bg-rose-100/80 disabled:hover:bg-white/60 shadow-lg border border-rose-200"
+            icon={<TrashIcon className="w-5 h-5" />}
+            label="Effacer"
+            className="bg-white/80 backdrop-blur-sm text-rose-600 hover:bg-rose-100/80 disabled:hover:bg-white/80 shadow-lg border border-rose-200 px-4 py-2"
             disabled={!transcript && !interimTranscript}
           />
-          <IconButton
-            onClick={handleListen}
-            icon={<MicrophoneIcon className={`w-8 h-8 sm:w-10 sm:h-10 transition-colors ${isListening ? 'text-red-500' : 'text-white'}`} />}
-            label={isListening ? 'Arrêter la dictée' : 'Commencer la dictée'}
-            className={`
-              ${isListening ? 'bg-rose-500 hover:bg-rose-600 mic-pulse-conditional' : 'bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'} 
-              text-white p-4 sm:p-5 shadow-xl transform hover:scale-105 active:scale-95
-            `}
-            disabled={!isSupported}
-            active={isListening}
-          />
-        </div>
-        
-        {/* Deuxième ligne : Copier et Sauvegarder */}
-        <div className="flex items-center justify-center space-x-4">
+          
+          {/* Copier */}
           <IconButton
             onClick={handleCopy}
-            icon={<CopyIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
-            label="Copier le texte"
-            className="bg-white/60 backdrop-blur-sm text-indigo-600 hover:bg-indigo-100/80 disabled:hover:bg-white/60 shadow-lg border border-indigo-200"
+            icon={<CopyIcon className="w-5 h-5" />}
+            label="Copier"
+            className="bg-white/80 backdrop-blur-sm text-indigo-600 hover:bg-indigo-100/80 disabled:hover:bg-white/80 shadow-lg border border-indigo-200 px-4 py-2"
             disabled={!transcript && !interimTranscript}
           />
+          
+          {/* Sauvegarder avec IA */}
           <IconButton
             onClick={handleSaveNote}
-            icon={<SaveWithAIIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
-            label="Sauvegarder avec IA"
-            className="bg-white/60 backdrop-blur-sm text-green-600 hover:bg-green-100/80 disabled:hover:bg-white/60 shadow-lg border border-green-200"
+            icon={<SaveWithAIIcon className="w-5 h-5" />}
+            label="Sauvegarder"
+            className="bg-white/80 backdrop-blur-sm text-green-600 hover:bg-green-100/80 disabled:hover:bg-white/80 shadow-lg border border-green-200 px-4 py-2"
             disabled={!transcript && !interimTranscript}
           />
-        </div>
-        
-        {/* Troisième ligne : E-mail et SMS */}
-        <div className="flex items-center justify-center space-x-4">
+          
+          {/* Générer E-mail */}
           <IconButton
             onClick={handleGenerateEmail}
-            icon={<EnvelopeIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
-            label="Générer un e-mail"
-            className="bg-white/60 backdrop-blur-sm text-purple-600 hover:bg-purple-100/80 disabled:hover:bg-white/60 shadow-lg border border-purple-200"
+            icon={<EnvelopeIcon className="w-5 h-5" />}
+            label="E-mail"
+            className="bg-white/80 backdrop-blur-sm text-purple-600 hover:bg-purple-100/80 disabled:hover:bg-white/80 shadow-lg border border-purple-200 px-4 py-2"
             disabled={!transcript && !interimTranscript}
           />
+          
+          {/* Générer SMS */}
           <IconButton
             onClick={handleGenerateSMS}
-            icon={<ChatBubbleIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
-            label="Générer un SMS"
-            className="bg-white/60 backdrop-blur-sm text-orange-600 hover:bg-orange-100/80 disabled:hover:bg-white/60 shadow-lg border border-orange-200"
+            icon={<ChatBubbleIcon className="w-5 h-5" />}
+            label="SMS"
+            className="bg-white/80 backdrop-blur-sm text-orange-600 hover:bg-orange-100/80 disabled:hover:bg-white/80 shadow-lg border border-orange-200 px-4 py-2"
             disabled={!transcript && !interimTranscript}
           />
         </div>
