@@ -1,0 +1,38 @@
+# Reconnaissance Vocale
+
+## API SpeechRecognition
+L'application utilise l'API Web SpeechRecognition définie dans [App.tsx](mdc:App.tsx) :
+- Support des navigateurs : `window.SpeechRecognition` ou `window.webkitSpeechRecognition`
+- Configuration : `continuous: true`, `interimResults: true`, `lang: 'fr-FR'`
+
+## Gestion des événements
+- `onstart` : Démarrage de la reconnaissance
+- `onend` : Fin de la reconnaissance (gérer les arrêts internes vs externes)
+- `onresult` : Traitement des résultats (final et interim)
+- `onerror` : Gestion des erreurs avec messages utilisateur en français
+
+## États de l'application
+- `isListening` : État actif de la reconnaissance
+- `transcript` : Texte final transcrit
+- `interimTranscript` : Texte temporaire en cours de reconnaissance
+- `error` : Messages d'erreur pour l'utilisateur
+- `isSupported` : Compatibilité du navigateur
+
+## Gestion des erreurs
+Erreurs courantes à gérer :
+- `no-speech` : Aucune parole détectée
+- `audio-capture` : Problème de capture audio
+- `not-allowed` : Permission microphone refusée
+- `network` : Erreur de réseau
+- `service-not-allowed` : Service désactivé
+
+## Bonnes pratiques
+- Utiliser `useRef` pour stocker l'instance SpeechRecognition
+- Gérer les arrêts internes vs externes avec `isStoppingInternallyRef`
+- Combiner transcript final et interim pour la copie
+- Ajouter des espaces automatiquement entre les segments
+- Gérer la ponctuation pour améliorer la fluidité
+description:
+globs:
+alwaysApply: false
+---

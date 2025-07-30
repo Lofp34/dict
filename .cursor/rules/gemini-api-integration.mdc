@@ -1,0 +1,59 @@
+# Intégration API Google Gemini
+
+## Configuration de base
+L'intégration de l'API Gemini utilise le package officiel `@google/genai` avec la configuration suivante :
+
+```typescript
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({});
+```
+
+## Structure de base pour les appels API
+Utiliser cette structure pour tous les appels à l'API Gemini :
+
+```typescript
+async function main() {
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: "Hello there",
+    config: {
+      systemInstruction: "You are a cat. Your name is Neko.",
+    },
+  });
+  console.log(response.text);
+}
+
+await main();
+```
+
+## Configuration dans le projet
+- **Package** : `@google/genai` - Package officiel Google
+- **Modèle par défaut** : `gemini-2.5-flash` - Modèle rapide et efficace
+- **Configuration** : Utiliser `systemInstruction` pour définir le comportement
+- **Réponse** : Accéder au texte via `response.text`
+
+## Variables d'environnement
+- Configurer la clé API dans [vite.config.ts](mdc:vite.config.ts) :
+  ```typescript
+  define: {
+    'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+  }
+  ```
+
+## Bonnes pratiques
+- Toujours utiliser `async/await` pour les appels API
+- Gérer les erreurs avec try/catch
+- Utiliser des instructions système claires
+- Limiter la taille des contenus pour optimiser les performances
+
+## Intégration dans l'application
+Pour intégrer dans [App.tsx](mdc:App.tsx) :
+- Créer des fonctions utilitaires pour les appels Gemini
+- Utiliser les hooks React pour gérer l'état des réponses
+- Implémenter la gestion d'erreurs appropriée
+- Considérer l'utilisation pour l'amélioration de la reconnaissance vocale
+description:
+globs:
+alwaysApply: false
+---

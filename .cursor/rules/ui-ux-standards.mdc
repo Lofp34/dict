@@ -1,0 +1,39 @@
+# Standards UI/UX
+
+## Design System
+L'application utilise TailwindCSS avec un design moderne et accessible :
+- Couleurs : Dégradés bleu-indigo-violet pour le thème principal
+- Typographie : Police sans-serif avec hiérarchie claire
+- Espacement : Système cohérent avec padding et margin
+
+## Composants réutilisables
+- [components/IconButton.tsx](mdc:components/IconButton.tsx) : Bouton avec icône, support des états disabled/active
+- Props standardisées : `onClick`, `icon`, `label`, `className`, `disabled`, `active`
+
+## Accessibilité
+- Utiliser `aria-label` pour les boutons avec icônes
+- Implémenter `role` appropriés (alert, status, presentation)
+- Support du focus avec `focus:ring` et `focus:outline-none`
+- Messages d'erreur clairs en français
+
+## Responsive Design
+- Mobile-first avec breakpoints TailwindCSS
+- Interface adaptée pour iPhone 12 (1170x2532)
+- Boutons et textes redimensionnés selon l'écran
+- Layout flexible avec flexbox
+
+## Animations et feedback
+- Transitions CSS pour les interactions
+- Animation de pulse pour le microphone actif
+- Notifications toast pour les actions utilisateur
+- Feedback visuel pour les états disabled/active
+
+## Expérience utilisateur
+- Interface intuitive avec 3 actions principales (effacer, dictée, copier)
+- Messages d'erreur contextuels et informatifs
+- Placeholder dynamique selon l'état de l'application
+- Focus automatique sur la zone de texte
+description:
+globs:
+alwaysApply: false
+---

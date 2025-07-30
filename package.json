@@ -12,13 +12,16 @@
     "generate-assets": "npm run generate-icons && npm run generate-splash"
   },
   "dependencies": {
-    "react-dom": "^19.1.0",
-    "react": "^19.1.0"
+    "@google/genai": "^1.11.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "sharp": "^0.33.2",
     "typescript": "~5.7.2",
-    "vite": "^6.2.0",
-    "sharp": "^0.33.2"
+    "vite": "^6.3.5"
   }
 }

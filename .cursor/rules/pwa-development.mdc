@@ -1,0 +1,33 @@
+# Développement PWA
+
+## Manifest et Service Worker
+- [public/manifest.json](mdc:public/manifest.json) : Définit les métadonnées PWA
+- [public/sw.js](mdc:public/sw.js) : Service Worker pour le cache et le fonctionnement hors-ligne
+- [index.html](mdc:index.html) : Contient les balises meta PWA et les splash screens
+
+## Génération d'assets
+Utiliser les scripts npm définis dans [package.json](mdc:package.json) :
+- `npm run generate-icons` : Génère les icônes PWA dans [public/icons/](mdc:public/icons/)
+- `npm run generate-splash` : Génère les splash screens iPhone 12 dans [public/splash/](mdc:public/splash/)
+- `npm run generate-assets` : Génère tous les assets PWA
+
+## Optimisations PWA
+- Icône principale : 180x180px pour l'installation
+- Splash screen : 1170x2532px optimisé pour iPhone 12
+- Service Worker : Cache des ressources statiques pour le fonctionnement hors-ligne
+- Manifest : Configuration pour l'installation sur l'écran d'accueil
+
+## Déploiement
+- [vercel.json](mdc:vercel.json) : Configuration pour le déploiement sur Vercel
+- Build de production : `npm run build` génère le dossier `dist/`
+- Service Worker doit être accessible à la racine pour le scope PWA
+
+## Tests PWA
+- Tester l'installation sur l'écran d'accueil
+- Vérifier le fonctionnement hors-ligne
+- Valider les splash screens sur différents appareils
+- Tester la reconnaissance vocale dans différents navigateurs
+description:
+globs:
+alwaysApply: false
+---

@@ -1,0 +1,32 @@
+# Structure du Projet Dictée Magique
+
+## Vue d'ensemble
+Ce projet est une application web de dictée vocale interactive, optimisée comme PWA (Progressive Web App) pour iPhone 12.
+
+## Points d'entrée principaux
+- [App.tsx](mdc:App.tsx) : Composant principal de l'application avec la logique de reconnaissance vocale
+- [index.tsx](mdc:index.tsx) : Point d'entrée React
+- [index.html](mdc:index.html) : Template HTML principal
+
+## Configuration
+- [package.json](mdc:package.json) : Dépendances et scripts npm
+- [vite.config.ts](mdc:vite.config.ts) : Configuration Vite avec alias @
+- [tsconfig.json](mdc:tsconfig.json) : Configuration TypeScript stricte
+- [vercel.json](mdc:vercel.json) : Configuration de déploiement Vercel
+
+## Composants
+- [components/IconButton.tsx](mdc:components/IconButton.tsx) : Composant bouton réutilisable avec icône
+
+## Assets PWA
+- [public/manifest.json](mdc:public/manifest.json) : Manifest PWA
+- [public/sw.js](mdc:public/sw.js) : Service Worker pour le fonctionnement hors-ligne
+- [public/icons/](mdc:public/icons/) : Icônes PWA de différentes tailles
+- [public/splash/](mdc:public/splash/) : Écrans de démarrage iPhone 12
+
+## Scripts de génération
+- [scripts/generate-icons.js](mdc:scripts/generate-icons.js) : Génération des icônes PWA
+- [scripts/generate-splash.js](mdc:scripts/generate-splash.js) : Génération des splash screens
+description:
+globs:
+alwaysApply: false
+---

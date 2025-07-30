@@ -1,0 +1,33 @@
+# Standards TypeScript et React
+
+## Configuration TypeScript
+Le projet utilise une configuration TypeScript stricte définie dans [tsconfig.json](mdc:tsconfig.json) :
+- `strict: true` - Active toutes les vérifications strictes
+- `noUnusedLocals: true` - Signale les variables locales non utilisées
+- `noUnusedParameters: true` - Signale les paramètres non utilisés
+- `noFallthroughCasesInSwitch: true` - Vérifie les cas manquants dans les switch
+
+## Standards React
+- Utiliser des composants fonctionnels avec hooks
+- Préférer `useCallback` pour les fonctions passées en props
+- Utiliser `useRef` pour les références DOM et les valeurs persistantes
+- Implémenter une interface TypeScript pour les props des composants
+
+## Gestion des événements
+- Typer correctement les événements React (ex: `React.ChangeEvent<HTMLTextAreaElement>`)
+- Utiliser `any` uniquement pour les APIs externes non typées (comme SpeechRecognition)
+- Documenter les interfaces personnalisées avec des commentaires
+
+## Imports et exports
+- Utiliser les imports ES6 : `import React, { useState } from 'react'`
+- Exporter par défaut les composants principaux
+- Utiliser l'alias `@` pour les imports relatifs à la racine du projet
+
+## Gestion d'état
+- Utiliser `useState` pour l'état local des composants
+- Préférer les objets d'état pour les données liées
+- Utiliser des refs pour les valeurs qui ne déclenchent pas de re-render
+description:
+globs:
+alwaysApply: false
+---

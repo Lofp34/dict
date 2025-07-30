@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import IconButton from './components/IconButton';
+import { GoogleGenAI } from "@google/genai";
 
 // SpeechRecognition interface (may vary by browser)
 interface CustomSpeechRecognition extends EventTarget {
@@ -12,7 +13,18 @@ interface CustomSpeechRecognition extends EventTarget {
   onstart?: () => void;
   onend?: () => void;
   onresult?: (event: any) => void; // Using 'any' for broader compatibility with SpeechRecognitionEvent
-  onerror?: (event: any) => void; // Using 'any' for SpeechRecognitionErrorEvent
+  onerror?: (event: any) => void; // Using 'any' for broader compatibility with SpeechRecognitionErrorEvent
+}
+
+// Interface pour les notes sauvegardées enrichies par Gemini
+interface SavedNote {
+  id: string;
+  originalText: string;
+  title: string;
+  structuredText: string;
+  suggestions: string[];
+  timestamp: Date;
+  isProcessing?: boolean;
 }
 
 declare global {
@@ -41,6 +53,11 @@ const TrashIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const XMarkIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-6 h-6 ${className}`}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
 
 const App: React.FC = () => {
   const [transcript, setTranscript] = useState<string>('');
@@ -49,10 +66,49 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState<boolean>(true);
+  const [savedNotes, setSavedNotes] = useState<SavedNote[]>([]);
 
   const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
   const isStoppingInternallyRef = useRef<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Initialiser l'API Gemini avec gestion d'erreur
+  const ai = useMemo(() => {
+    try {
+      if (process.env.GEMINI_API_KEY) {
+        return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      } else {
+        console.warn('Clé API Gemini non configurée. Les fonctionnalités IA seront désactivées.');
+        return null;
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'initialisation de Gemini:', error);
+      return null;
+    }
+  }, []);
+
+  // Charger les notes sauvegardées depuis localStorage au démarrage
+  useEffect(() => {
+    const saved = localStorage.getItem('dictée-magique-notes');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Convertir les timestamps en objets Date
+        const notesWithDates = parsed.map((note: any) => ({
+          ...note,
+          timestamp: new Date(note.timestamp)
+        }));
+        setSavedNotes(notesWithDates);
+      } catch (error) {
+        console.error('Erreur lors du chargement des notes:', error);
+      }
+    }
+  }, []);
+
+  // Sauvegarder les notes dans localStorage quand elles changent
+  useEffect(() => {
+    localStorage.setItem('dictée-magique-notes', JSON.stringify(savedNotes));
+  }, [savedNotes]);
 
   const showNotification = (message: string) => {
     setNotification(message);
@@ -216,6 +272,140 @@ const App: React.FC = () => {
       });
   }, [transcript, interimTranscript]);
 
+  const processNoteWithGemini = useCallback(async (note: SavedNote) => {
+    if (!ai) {
+      console.warn('API Gemini non disponible');
+      return {
+        ...note,
+        title: "Note (IA non disponible)",
+        structuredText: note.originalText,
+        suggestions: ["Fonctionnalité IA désactivée"],
+        isProcessing: false
+      };
+    }
+
+    try {
+      const prompt = `
+Tu es un expert en stratégie commerciale et développement de produits. Analyse cette note professionnelle et fournis :
+
+1. Un titre court et percutant (max 8 mots)
+2. Une reformulation structurée qui clarifie et complète la pensée exprimée (pas de résumé, mais une amélioration de la structure et de la clarté)
+3. 2-3 suggestions d'approfondissement ou questions stratégiques pertinentes
+
+Note originale : "${note.originalText}"
+
+IMPORTANT : Réponds UNIQUEMENT avec un objet JSON valide, sans backticks ni texte supplémentaire :
+
+{
+  "title": "Titre de la note",
+  "structuredText": "Texte reformulé et structuré",
+  "suggestions": ["Suggestion 1", "Suggestion 2", "Suggestion 3"]
+}
+`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "Tu es un expert en stratégie commerciale et développement de produits. Tu analyses des notes professionnelles pour les améliorer et proposer des pistes d'approfondissement.",
+        },
+      });
+
+      // Nettoyer la réponse de Gemini qui peut contenir des backticks
+      let cleanResponse = (response.text || '').trim();
+      
+      // Supprimer les backticks et "json" si présents
+      if (cleanResponse.startsWith('```json')) {
+        cleanResponse = cleanResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanResponse.startsWith('```')) {
+        cleanResponse = cleanResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      const result = JSON.parse(cleanResponse);
+      
+      return {
+        ...note,
+        title: result.title,
+        structuredText: result.structuredText,
+        suggestions: result.suggestions,
+        isProcessing: false
+      };
+    } catch (error) {
+      console.error('Erreur lors du traitement Gemini:', error);
+      return {
+        ...note,
+        title: "Note non traitée",
+        structuredText: note.originalText,
+        suggestions: ["Erreur de traitement"],
+        isProcessing: false
+      };
+    }
+  }, [ai]);
+
+  const handleSaveNote = useCallback(async () => {
+    const textToSave = (transcript + (interimTranscript ? ((transcript && !/\s$/.test(transcript) ? ' ' : '') + interimTranscript) : '')).trim();
+    if (!textToSave) {
+      showNotification("Rien à sauvegarder.");
+      return;
+    }
+    
+    const newNote: SavedNote = {
+      id: Date.now().toString(),
+      originalText: textToSave,
+      title: "Traitement en cours...",
+      structuredText: "",
+      suggestions: [],
+      timestamp: new Date(),
+      isProcessing: true
+    };
+    
+    setSavedNotes(prev => [newNote, ...prev]);
+    showNotification("Note sauvegardée et en cours de traitement...");
+    
+    // Traiter la note avec Gemini
+    const processedNote = await processNoteWithGemini(newNote);
+    setSavedNotes(prev => prev.map(note => 
+      note.id === newNote.id ? processedNote : note
+    ));
+    
+    showNotification("Note enrichie par l'IA !");
+  }, [transcript, interimTranscript, processNoteWithGemini]);
+
+  const handleCopyNote = useCallback((note: SavedNote) => {
+    const textToCopy = note.isProcessing ? note.originalText : note.structuredText;
+    navigator.clipboard.writeText(textToCopy)
+      .then(() => showNotification("Note copiée !"))
+      .catch(err => {
+        console.error('Failed to copy note: ', err);
+        showNotification("Erreur lors de la copie.");
+      });
+  }, []);
+
+  const handleDeleteNote = useCallback((noteId: string) => {
+    setSavedNotes(prev => prev.filter(note => note.id !== noteId));
+    showNotification("Note supprimée.");
+  }, []);
+
+  const formatTimestamp = (date: Date): string => {
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    
+    if (diffInHours < 1) {
+      const diffInMinutes = Math.floor(diffInHours * 60);
+      return `Il y a ${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''}`;
+    } else if (diffInHours < 24) {
+      const hours = Math.floor(diffInHours);
+      return `Il y a ${hours} heure${hours > 1 ? 's' : ''}`;
+    } else {
+      return date.toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+  };
+
   const handleClear = useCallback(() => {
     setTranscript('');
     setInterimTranscript('');
@@ -254,6 +444,20 @@ const App: React.FC = () => {
         @keyframes pulse-mic {
           0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } /* rose-500 */
           50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+        }
+
+        .line-clamp-4 {
+          display: -webkit-box;
+          -webkit-line-clamp: 4;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
         }
       `}</style>
 
@@ -302,33 +506,103 @@ const App: React.FC = () => {
       </div>
 
 
-      <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 w-full max-w-md pb-4">
-        <IconButton
-          onClick={handleClear}
-          icon={<TrashIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
-          label="Effacer le texte"
-          className="bg-white/60 backdrop-blur-sm text-rose-600 hover:bg-rose-100/80 disabled:hover:bg-white/60 shadow-lg border border-rose-200"
-          disabled={!transcript && !interimTranscript}
-        />
-        <IconButton
-          onClick={handleListen}
-          icon={<MicrophoneIcon className={`w-8 h-8 sm:w-10 sm:h-10 transition-colors ${isListening ? 'text-red-500' : 'text-white'}`} />}
-          label={isListening ? 'Arrêter la dictée' : 'Commencer la dictée'}
-          className={`
-            ${isListening ? 'bg-rose-500 hover:bg-rose-600 mic-pulse-conditional' : 'bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'} 
-            text-white p-4 sm:p-5 shadow-xl transform hover:scale-105 active:scale-95
-          `}
-          disabled={!isSupported}
-          active={isListening}
-        />
-        <IconButton
-          onClick={handleCopy}
-          icon={<CopyIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
-          label="Copier le texte"
-          className="bg-white/60 backdrop-blur-sm text-indigo-600 hover:bg-indigo-100/80 disabled:hover:bg-white/60 shadow-lg border border-indigo-200"
-          disabled={!transcript && !interimTranscript}
-        />
+      <div className="flex flex-col items-center justify-center space-y-4 w-full max-w-md pb-4">
+        {/* Première ligne : Effacer et Microphone */}
+        <div className="flex items-center justify-center space-x-4">
+          <IconButton
+            onClick={handleClear}
+            icon={<TrashIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
+            label="Effacer le texte"
+            className="bg-white/60 backdrop-blur-sm text-rose-600 hover:bg-rose-100/80 disabled:hover:bg-white/60 shadow-lg border border-rose-200"
+            disabled={!transcript && !interimTranscript}
+          />
+          <IconButton
+            onClick={handleListen}
+            icon={<MicrophoneIcon className={`w-8 h-8 sm:w-10 sm:h-10 transition-colors ${isListening ? 'text-red-500' : 'text-white'}`} />}
+            label={isListening ? 'Arrêter la dictée' : 'Commencer la dictée'}
+            className={`
+              ${isListening ? 'bg-rose-500 hover:bg-rose-600 mic-pulse-conditional' : 'bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'} 
+              text-white p-4 sm:p-5 shadow-xl transform hover:scale-105 active:scale-95
+            `}
+            disabled={!isSupported}
+            active={isListening}
+          />
+        </div>
+        
+        {/* Deuxième ligne : Copier et Sauvegarder côte à côte */}
+        <div className="flex items-center justify-center space-x-4">
+          <IconButton
+            onClick={handleCopy}
+            icon={<CopyIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
+            label="Copier le texte"
+            className="bg-white/60 backdrop-blur-sm text-indigo-600 hover:bg-indigo-100/80 disabled:hover:bg-white/60 shadow-lg border border-indigo-200"
+            disabled={!transcript && !interimTranscript}
+          />
+          <IconButton
+            onClick={handleSaveNote}
+            icon={<CopyIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
+            label="Sauvegarder la note"
+            className="bg-white/60 backdrop-blur-sm text-green-600 hover:bg-green-100/80 disabled:hover:bg-white/60 shadow-lg border border-green-200"
+            disabled={!transcript && !interimTranscript}
+          />
+        </div>
       </div>
+
+      {/* Section des notes sauvegardées */}
+      {savedNotes.length > 0 && (
+        <div className="w-full max-w-4xl mt-8">
+          <h2 className="text-2xl font-bold mb-6 text-center text-slate-700">
+            Notes Sauvegardées
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {savedNotes.map((note) => (
+              <div
+                key={note.id}
+                className="bg-white/80 backdrop-blur-lg shadow-lg rounded-xl p-4 hover:shadow-xl transition-shadow cursor-pointer border border-slate-200"
+                onClick={() => handleCopyNote(note)}
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-xs text-slate-500 font-medium">
+                    {formatTimestamp(note.timestamp)}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteNote(note.id);
+                    }}
+                    className="text-red-500 hover:text-red-700 transition-colors p-1"
+                    aria-label="Supprimer la note"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                </div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-2">
+                  {note.isProcessing ? "⏳ Traitement en cours..." : note.title}
+                </h3>
+                <p className="text-slate-700 text-sm leading-relaxed line-clamp-4 mb-2">
+                  {note.isProcessing ? note.originalText : note.structuredText}
+                </p>
+                {!note.isProcessing && note.suggestions.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs text-slate-600 font-medium mb-1">Suggestions :</p>
+                    <ul className="text-xs text-slate-500 space-y-1">
+                      {note.suggestions.slice(0, 2).map((suggestion, index) => (
+                        <li key={index} className="flex items-start">
+                          <span className="text-indigo-500 mr-1">•</span>
+                          <span className="line-clamp-2">{suggestion}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="mt-3 text-xs text-indigo-600 font-medium">
+                  {note.isProcessing ? "Traitement en cours..." : "Cliquez pour copier"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,0 +1,41 @@
+# Workflow de Développement
+
+## Scripts de développement
+Définis dans [package.json](mdc:package.json) :
+- `npm run dev` : Serveur de développement Vite
+- `npm run build` : Build de production
+- `npm run preview` : Prévisualisation du build
+- `npm run generate-assets` : Génération des assets PWA
+
+## Configuration de développement
+- [vite.config.ts](mdc:vite.config.ts) : Configuration Vite avec alias `@` pour les imports
+- [tsconfig.json](mdc:tsconfig.json) : TypeScript strict pour la qualité du code
+- Hot reload activé pour le développement
+
+## Structure des composants
+- Un composant par fichier dans le dossier `components/`
+- Interface TypeScript pour toutes les props
+- Export par défaut pour les composants principaux
+- Imports relatifs ou avec alias `@`
+
+## Gestion des assets
+- Icônes SVG inline dans les composants React
+- Assets PWA générés automatiquement via scripts
+- Service Worker pour le cache en production
+- Manifest PWA pour l'installation
+
+## Tests et validation
+- Tester la reconnaissance vocale sur différents navigateurs
+- Valider l'installation PWA sur iPhone 12
+- Vérifier le fonctionnement hors-ligne
+- Tester l'accessibilité avec les lecteurs d'écran
+
+## Déploiement
+- Build automatique sur Vercel
+- Configuration dans [vercel.json](mdc:vercel.json)
+- Service Worker accessible à la racine
+- Assets PWA optimisés pour la production
+description:
+globs:
+alwaysApply: false
+---
