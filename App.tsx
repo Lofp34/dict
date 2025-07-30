@@ -130,10 +130,13 @@ const App: React.FC = () => {
   // Initialiser l'API Gemini avec gestion d'erreur
   const ai = useMemo(() => {
     try {
-      if (process.env.GEMINI_API_KEY) {
-        return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (apiKey && apiKey !== 'your_gemini_api_key_here' && apiKey.trim() !== '') {
+        console.log('API Gemini initialisée avec succès');
+        return new GoogleGenAI({ apiKey: apiKey });
       } else {
-        console.warn('Clé API Gemini non configurée. Les fonctionnalités IA seront désactivées.');
+        console.warn('Clé API Gemini non configurée ou invalide. Les fonctionnalités IA seront désactivées.');
+        console.warn('Vérifiez que GEMINI_API_KEY est définie dans vos variables d\'environnement.');
         return null;
       }
     } catch (error) {
