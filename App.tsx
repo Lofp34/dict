@@ -84,6 +84,12 @@ const ChevronUpIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const SaveWithAIIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-6 h-6 ${className}`}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+  </svg>
+);
+
 const App: React.FC = () => {
   const [transcript, setTranscript] = useState<string>('');
   const [interimTranscript, setInterimTranscript] = useState<string>('');
@@ -878,56 +884,7 @@ Réponds UNIQUEMENT avec un objet JSON valide :
         Dictée Magique
       </h1>
 
-      {/* Contrôles de reconnaissance vocale */}
-      <div className="w-full max-w-2xl mb-6 bg-white/60 backdrop-blur-lg rounded-xl p-4 shadow-lg">
-        <div className="flex flex-wrap items-center justify-center gap-4 text-sm">
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoPunctuation}
-              onChange={(e) => setAutoPunctuation(e.target.checked)}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-            />
-            <span className="text-slate-700">Ponctuation automatique</span>
-          </label>
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoCorrection}
-              onChange={(e) => setAutoCorrection(e.target.checked)}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-            />
-            <span className="text-slate-700">Correction automatique IA</span>
-          </label>
-        </div>
-        
-        {/* Indicateur de confiance */}
-        {isListening && confidence > 0 && (
-          <div className="mt-3 text-center">
-            <div className="text-xs text-slate-600 mb-1">Confiance de reconnaissance</div>
-            <div className="w-full bg-slate-200 rounded-full h-2">
-              <div 
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  confidence > 0.8 ? 'bg-green-500' : 
-                  confidence > 0.6 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}
-                style={{ width: `${confidence * 100}%` }}
-              ></div>
-            </div>
-            <div className="text-xs text-slate-500 mt-1">{Math.round(confidence * 100)}%</div>
-          </div>
-        )}
-        
-        {/* Indicateur de traitement */}
-        {isProcessing && (
-          <div className="mt-3 text-center">
-            <div className="inline-flex items-center space-x-2 text-sm text-blue-600">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-              <span>Correction automatique en cours...</span>
-            </div>
-          </div>
-        )}
-      </div>
+
 
       {error && (
         <div className="w-full max-w-2xl bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded-md shadow-md" role="alert">
@@ -993,7 +950,7 @@ Réponds UNIQUEMENT avec un objet JSON valide :
           />
         </div>
         
-        {/* Deuxième ligne : Copier, Sauvegarder et E-mail */}
+        {/* Deuxième ligne : Copier et Sauvegarder */}
         <div className="flex items-center justify-center space-x-4">
           <IconButton
             onClick={handleCopy}
@@ -1004,11 +961,15 @@ Réponds UNIQUEMENT avec un objet JSON valide :
           />
           <IconButton
             onClick={handleSaveNote}
-            icon={<CopyIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
-            label="Sauvegarder la note"
+            icon={<SaveWithAIIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
+            label="Sauvegarder avec IA"
             className="bg-white/60 backdrop-blur-sm text-green-600 hover:bg-green-100/80 disabled:hover:bg-white/60 shadow-lg border border-green-200"
             disabled={!transcript && !interimTranscript}
           />
+        </div>
+        
+        {/* Troisième ligne : E-mail et SMS */}
+        <div className="flex items-center justify-center space-x-4">
           <IconButton
             onClick={handleGenerateEmail}
             icon={<EnvelopeIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
@@ -1016,10 +977,6 @@ Réponds UNIQUEMENT avec un objet JSON valide :
             className="bg-white/60 backdrop-blur-sm text-purple-600 hover:bg-purple-100/80 disabled:hover:bg-white/60 shadow-lg border border-purple-200"
             disabled={!transcript && !interimTranscript}
           />
-        </div>
-        
-        {/* Troisième ligne : SMS */}
-        <div className="flex items-center justify-center space-x-4">
           <IconButton
             onClick={handleGenerateSMS}
             icon={<ChatBubbleIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
