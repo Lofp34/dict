@@ -37,6 +37,12 @@ interface ChatMessage {
   timestamp: Date;
 }
 
+// Interface pour le bouton flottant
+interface FloatingButtonPosition {
+  x: number;
+  y: number;
+}
+
 declare global {
   interface Window {
     SpeechRecognition: { new(): CustomSpeechRecognition };
@@ -121,6 +127,13 @@ const App: React.FC = () => {
   const [savedNotes, setSavedNotes] = useState<SavedNote[]>([]);
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   const [chatInputs, setChatInputs] = useState<{ [noteId: string]: string }>({});
+  
+  // États pour le bouton flottant
+  const [floatingButtonPosition, setFloatingButtonPosition] = useState<FloatingButtonPosition>({ x: 20, y: 20 });
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isFloatingListening, setIsFloatingListening] = useState<boolean>(false);
+  const [activeInputId, setActiveInputId] = useState<string | null>(null);
 
   const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
   const isStoppingInternallyRef = useRef<boolean>(false);
@@ -218,16 +231,26 @@ const App: React.FC = () => {
       }
       
       if (finalTranscriptChunk) {
-        setTranscript(prev => {
-          const separator = (prev && !/\s$/.test(prev) && finalTranscriptChunk && !finalTranscriptChunk.startsWith(' ')) ? ' ' : '';
-          let newText = (prev + separator + finalTranscriptChunk).trim();
-          
-          // Add a space after common sentence-ending punctuation for better flow in next dictation
-          if (/[.?!]$/.test(finalTranscriptChunk.trim())) {
-            newText += ' ';
-          }
-          return newText;
-        });
+        // Si on est dans un chat, ajouter au chat actif
+        if (activeInputId && activeInputId.startsWith('chat-')) {
+          const noteId = activeInputId.replace('chat-', '');
+          setChatInputs(prev => ({
+            ...prev,
+            [noteId]: (prev[noteId] || '') + finalTranscriptChunk
+          }));
+        } else {
+          // Sinon, ajouter au transcript principal
+          setTranscript(prev => {
+            const separator = (prev && !/\s$/.test(prev) && finalTranscriptChunk && !finalTranscriptChunk.startsWith(' ')) ? ' ' : '';
+            let newText = (prev + separator + finalTranscriptChunk).trim();
+            
+            // Add a space after common sentence-ending punctuation for better flow in next dictation
+            if (/[.?!]$/.test(finalTranscriptChunk.trim())) {
+              newText += ' ';
+            }
+            return newText;
+          });
+        }
       }
       
       setInterimTranscript(currentInterim.trim());
@@ -281,7 +304,7 @@ const App: React.FC = () => {
         recognitionRef.current = null;
       }
     };
-  }, []);
+  }, [activeInputId]);
 
 
   const handleListen = useCallback(() => {
@@ -733,7 +756,7 @@ Réponds UNIQUEMENT avec un objet JSON valide :
       // Créer un message IA temporaire pour le streaming
       const tempAiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: "",
+        content: "▋", // Curseur de frappe pour indiquer le streaming
         isUser: false,
         timestamp: new Date()
       };
@@ -831,6 +854,79 @@ Réponds UNIQUEMENT avec un objet JSON valide :
     setTranscript(event.target.value);
   };
 
+  // Fonction pour gérer le clic sur le bouton flottant
+  const handleFloatingMicClick = useCallback(() => {
+    if (!isSupported) {
+      setError("La reconnaissance vocale n'est pas prise en charge par ce navigateur.");
+      return;
+    }
+
+    if (isFloatingListening) {
+      // Arrêter l'écoute
+      if (recognitionRef.current) {
+        isStoppingInternallyRef.current = true;
+        recognitionRef.current.stop();
+      }
+      setIsFloatingListening(false);
+    } else {
+      // Démarrer l'écoute
+      setError('');
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+          setIsFloatingListening(true);
+        } catch (error) {
+          console.error('Erreur lors du démarrage de la reconnaissance vocale:', error);
+          setError("Impossible de démarrer la reconnaissance vocale.");
+        }
+      }
+    }
+  }, [isFloatingListening, isSupported]);
+
+  // Fonction pour gérer le début du drag
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    });
+  }, []);
+
+  // Fonction pour gérer le drag
+  const handleDrag = useCallback((e: React.MouseEvent) => {
+    if (!isDragging) return;
+    
+    e.preventDefault();
+    const newX = e.clientX - dragOffset.x;
+    const newY = e.clientY - dragOffset.y;
+    
+    // Limiter aux bords de l'écran
+    const maxX = window.innerWidth - 60; // Largeur du bouton
+    const maxY = window.innerHeight - 60; // Hauteur du bouton
+    
+    setFloatingButtonPosition({
+      x: Math.max(0, Math.min(newX, maxX)),
+      y: Math.max(0, Math.min(newY, maxY))
+    });
+  }, [isDragging, dragOffset]);
+
+  // Fonction pour gérer la fin du drag
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Fonction pour gérer le focus sur un input
+  const handleInputFocus = useCallback((inputId: string) => {
+    setActiveInputId(inputId);
+  }, []);
+
+  // Fonction pour gérer la perte de focus
+  const handleInputBlur = useCallback(() => {
+    setActiveInputId(null);
+  }, []);
+
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-start p-4 sm:p-6 bg-gradient-to-br from-slate-100 via-sky-100 to-indigo-200 text-slate-800 font-sans">
       {notification && (
@@ -899,18 +995,27 @@ Réponds UNIQUEMENT avec un objet JSON valide :
           className="flex-grow w-full p-6 sm:p-8 bg-transparent focus:outline-none custom-scrollbar resize-none placeholder-slate-400 placeholder-italic"
           value={transcript}
           onChange={handleTextChange}
+          onFocus={() => handleInputFocus('main')}
+          onBlur={handleInputBlur}
           placeholder={!isListening && !transcript && !interimTranscript ? "Appuyez sur le microphone pour commencer la dictée..." : ""}
           aria-label="Texte de la dictée"
           rows={10} // Initial rows, actual height controlled by flex layout
         />
-        {(isListening || interimTranscript) && (
-          <div className="p-6 sm:p-8 pt-0 text-slate-500" aria-live="polite">
-            {isListening && !interimTranscript && !transcript && <p className="italic">Écoute en cours...</p>}
+        {/* Indicateur de streaming pour la zone principale */}
+        {(isListening || isFloatingListening || interimTranscript) && activeInputId === 'main' && (
+          <div className="p-6 sm:p-8 pt-0 border-t border-slate-200 bg-slate-50/50" aria-live="polite">
+            <div className="flex items-center space-x-2 mb-2">
+              <div className={`w-2 h-2 rounded-full ${(isListening || isFloatingListening) ? 'bg-red-500 animate-pulse' : 'bg-slate-400'}`}></div>
+              <span className="text-sm font-medium text-slate-600">
+                {(isListening || isFloatingListening) ? 'Écoute en cours...' : 'Traitement...'}
+              </span>
+            </div>
             {interimTranscript && (
-              <>
-                {(transcript && !/\s$/.test(transcript) && interimTranscript ? ' ' : '')}
+              <div className="text-slate-600 italic">
+                <span className="text-slate-400">Streaming : </span>
                 {interimTranscript}
-              </>
+                <span className="inline-block w-1 h-4 bg-slate-400 ml-1 animate-pulse"></span>
+              </div>
             )}
           </div>
         )}
@@ -1184,6 +1289,8 @@ Réponds UNIQUEMENT avec un objet JSON valide :
                                     value={chatInputs[note.id] || ''}
                                     onChange={(e) => handleChatInputChange(note.id, e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && handleSendChatMessage(note.id)}
+                                    onFocus={() => handleInputFocus(`chat-${note.id}`)}
+                                    onBlur={handleInputBlur}
                                     placeholder="Posez une question à l'IA..."
                                     className="w-full text-xs pl-8 pr-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                     onClick={(e) => e.stopPropagation()}
@@ -1202,6 +1309,25 @@ Réponds UNIQUEMENT avec un objet JSON valide :
                                   <SendIcon className="w-3 h-3" />
                                 </button>
                               </div>
+
+                              {/* Indicateur de streaming pour le chat */}
+                              {(isListening || isFloatingListening || interimTranscript) && activeInputId === `chat-${note.id}` && (
+                                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs" aria-live="polite">
+                                  <div className="flex items-center space-x-2 mb-1">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${(isListening || isFloatingListening) ? 'bg-blue-500 animate-pulse' : 'bg-blue-400'}`}></div>
+                                    <span className="text-blue-700 font-medium">
+                                      {(isListening || isFloatingListening) ? 'Écoute en cours...' : 'Traitement...'}
+                                    </span>
+                                  </div>
+                                  {interimTranscript && (
+                                    <div className="text-blue-600 italic">
+                                      <span className="text-blue-500">Streaming : </span>
+                                      {interimTranscript}
+                                      <span className="inline-block w-0.5 h-3 bg-blue-400 ml-1 animate-pulse"></span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1232,6 +1358,33 @@ Réponds UNIQUEMENT avec un objet JSON valide :
           </div>
         </div>
       )}
+
+      {/* Bouton flottant pour le microphone */}
+      <div
+        className={`fixed z-50 cursor-move transition-all duration-200 ${
+          isDragging ? 'scale-110' : 'hover:scale-105'
+        }`}
+        style={{
+          left: `${floatingButtonPosition.x}px`,
+          top: `${floatingButtonPosition.y}px`
+        }}
+        onMouseDown={handleDragStart}
+        onMouseMove={handleDrag}
+        onMouseUp={handleDragEnd}
+        onMouseLeave={handleDragEnd}
+      >
+        <button
+          onClick={handleFloatingMicClick}
+          className={`w-14 h-14 rounded-full shadow-lg border-2 border-white flex items-center justify-center transition-all duration-200 ${
+            isFloatingListening
+              ? 'bg-red-500 hover:bg-red-600 animate-pulse'
+              : 'bg-indigo-500 hover:bg-indigo-600'
+          }`}
+          title={isFloatingListening ? "Arrêter l'écoute" : "Démarrer l'écoute vocale"}
+        >
+          <MicrophoneIcon className="w-6 h-6 text-white" />
+        </button>
+      </div>
     </div>
   );
 };
