@@ -37,11 +37,7 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-// Interface pour le bouton flottant
-interface FloatingButtonPosition {
-  x: number;
-  y: number;
-}
+
 
 declare global {
   interface Window {
@@ -129,9 +125,6 @@ const App: React.FC = () => {
   const [chatInputs, setChatInputs] = useState<{ [noteId: string]: string }>({});
   
   // États pour le bouton flottant
-  const [floatingButtonPosition, setFloatingButtonPosition] = useState<FloatingButtonPosition>({ x: window.innerWidth - 80, y: window.innerHeight - 80 });
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isFloatingListening, setIsFloatingListening] = useState<boolean>(false);
   const [activeInputId, setActiveInputId] = useState<string | null>(null);
 
@@ -883,39 +876,7 @@ Réponds UNIQUEMENT avec un objet JSON valide :
     }
   }, [isFloatingListening, isSupported]);
 
-  // Fonction pour gérer le début du drag
-  const handleDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    const rect = e.currentTarget.getBoundingClientRect();
-    setDragOffset({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    });
-  }, []);
 
-  // Fonction pour gérer le drag
-  const handleDrag = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return;
-    
-    e.preventDefault();
-    const newX = e.clientX - dragOffset.x;
-    const newY = e.clientY - dragOffset.y;
-    
-    // Limiter aux bords de l'écran
-    const maxX = window.innerWidth - 70; // Largeur du bouton + marge
-    const maxY = window.innerHeight - 70; // Hauteur du bouton + marge
-    
-    setFloatingButtonPosition({
-      x: Math.max(0, Math.min(newX, maxX)),
-      y: Math.max(0, Math.min(newY, maxY))
-    });
-  }, [isDragging, dragOffset]);
-
-  // Fonction pour gérer la fin du drag
-  const handleDragEnd = useCallback(() => {
-    setIsDragging(false);
-  }, []);
 
   // Fonction pour gérer le focus sur un input
   const handleInputFocus = useCallback((inputId: string) => {
@@ -926,6 +887,8 @@ Réponds UNIQUEMENT avec un objet JSON valide :
   const handleInputBlur = useCallback(() => {
     setActiveInputId(null);
   }, []);
+
+
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-start p-4 sm:p-6 bg-gradient-to-br from-slate-100 via-sky-100 to-indigo-200 text-slate-800 font-sans">
@@ -1342,30 +1305,18 @@ Réponds UNIQUEMENT avec un objet JSON valide :
         </div>
       )}
 
-      {/* Bouton flottant pour le microphone */}
-      <div
-        className={`fixed z-50 cursor-move transition-all duration-200 ${
-          isDragging ? 'scale-110' : 'hover:scale-105'
-        }`}
-        style={{
-          left: `${floatingButtonPosition.x}px`,
-          top: `${floatingButtonPosition.y}px`
-        }}
-        onMouseDown={handleDragStart}
-        onMouseMove={handleDrag}
-        onMouseUp={handleDragEnd}
-        onMouseLeave={handleDragEnd}
-      >
+      {/* Bouton flottant fixe pour le microphone */}
+      <div className="fixed bottom-6 right-6 z-50">
         <button
           onClick={handleFloatingMicClick}
-          className={`w-14 h-14 rounded-full shadow-lg border-2 border-white flex items-center justify-center transition-all duration-200 ${
+          className={`w-16 h-16 sm:w-14 sm:h-14 rounded-full shadow-xl border-3 border-white flex items-center justify-center transition-all duration-200 hover:scale-105 ${
             isFloatingListening
               ? 'bg-red-500 hover:bg-red-600 animate-pulse'
               : 'bg-indigo-500 hover:bg-indigo-600'
           }`}
           title={isFloatingListening ? "Arrêter l'écoute" : "Démarrer l'écoute vocale"}
         >
-          <MicrophoneIcon className="w-6 h-6 text-white" />
+          <MicrophoneIcon className="w-7 h-7 sm:w-6 sm:h-6 text-white" />
         </button>
       </div>
     </div>
