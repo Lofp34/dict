@@ -1,0 +1,157 @@
+# Intégration Chat Gemini - API Officielle
+
+## 🎯 **Objectif**
+Intégrer un système de chat interactif dans l'application Dictée Magique en utilisant l'API Gemini officielle pour permettre aux utilisateurs de dialoguer avec l'IA sur leurs notes sauvegardées.
+
+## 📚 **Documentation Officielle Google Gemini**
+
+### **Import et Initialisation**
+```typescript
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({});
+```
+
+### **Création d'une Session de Chat**
+```typescript
+const chat = ai.chats.create({
+  model: "gemini-2.5-flash",
+  history: [
+    {
+      role: "user",
+      parts: [{ text: "Hello" }],
+    },
+    {
+      role: "model", 
+      parts: [{ text: "Great to meet you. What would you like to know?" }],
+    },
+  ],
+});
+```
+
+### **Envoi de Messages avec Streaming**
+```typescript
+const stream1 = await chat.sendMessageStream({
+  message: "I have 2 dogs in my house.",
+});
+
+for await (const chunk of stream1) {
+  console.log(chunk.text);
+  console.log("_".repeat(80));
+}
+```
+
+### **Conversation Continue**
+```typescript
+const stream2 = await chat.sendMessageStream({
+  message: "How many paws are in my house?",
+});
+
+for await (const chunk of stream2) {
+  console.log(chunk.text);
+  console.log("_".repeat(80));
+}
+```
+
+## 🔧 **Implémentation dans l'Application**
+
+### **1. Interface ChatMessage**
+```typescript
+interface ChatMessage {
+  id: string;
+  content: string;
+  isUser: boolean;
+  timestamp: Date;
+  role?: "user" | "model";
+  parts?: { text: string }[];
+}
+```
+
+### **2. Gestion des Sessions de Chat**
+- **Créer une session de chat** pour chaque note sauvegardée
+- **Maintenir l'historique** des conversations
+- **Gérer le streaming** des réponses en temps réel
+- **Sauvegarder les conversations** dans localStorage
+
+### **3. Interface Utilisateur**
+- **Bouton Chat** sur chaque note sauvegardée
+- **Zone de chat** dépliable/réductible
+- **Input de message** avec bouton d'envoi
+- **Affichage en temps réel** des réponses streaming
+
+### **4. Intégration avec les Notes**
+- **Contexte de la note** : Note originale + suggestions
+- **Historique persistant** : Sauvegarde des conversations
+- **Réponses contextuelles** : IA basée sur le contenu de la note
+
+## 🎨 **Composants UI à Créer**
+
+### **ChatButton**
+- Icône de chat (ChatIcon)
+- Indicateur de nouveaux messages
+- Toggle pour ouvrir/fermer le chat
+
+### **ChatWindow**
+- Zone d'affichage des messages
+- Scroll automatique vers le bas
+- Distinction visuelle user/IA
+
+### **ChatInput**
+- Zone de saisie de message
+- Bouton d'envoi (SendIcon)
+- Validation et gestion des erreurs
+
+### **MessageBubble**
+- Style différent pour user/IA
+- Timestamp des messages
+- Support du streaming en temps réel
+
+## 🔄 **Workflow d'Intégration**
+
+1. **Initialisation** : Créer une session de chat lors de la sauvegarde d'une note
+2. **Ouverture** : Afficher l'interface de chat quand l'utilisateur clique sur le bouton
+3. **Envoi** : Capturer le message utilisateur et l'envoyer via `chat.sendMessageStream()`
+4. **Réception** : Afficher la réponse en streaming en temps réel
+5. **Sauvegarde** : Persister l'historique de conversation
+
+## 📝 **Exemple d'Implémentation**
+
+```typescript
+const handleSendChatMessage = async (noteId: string, message: string) => {
+  // Créer ou récupérer la session de chat
+  const chat = ai.chats.create({
+    model: "gemini-2.5-flash",
+    history: getChatHistory(noteId)
+  });
+
+  // Envoyer le message avec streaming
+  const stream = await chat.sendMessageStream({
+    message: message
+  });
+
+  // Afficher la réponse en temps réel
+  for await (const chunk of stream) {
+    updateChatMessage(noteId, chunk.text);
+  }
+};
+```
+
+## ⚠️ **Points d'Attention**
+
+- **Gestion des erreurs** : Timeout, erreurs réseau, API indisponible
+- **Performance** : Limiter le nombre de sessions de chat actives
+- **Sécurité** : Validation des messages utilisateur
+- **UX** : Feedback visuel pendant le streaming
+- **Persistance** : Sauvegarde automatique de l'historique
+
+## 🎯 **Avantages de cette Approche**
+
+1. **Conversation naturelle** : L'IA se souvient du contexte
+2. **Réponses en temps réel** : Streaming pour une meilleure UX
+3. **Historique persistant** : Conversations sauvegardées
+4. **Contexte riche** : IA basée sur la note originale
+5. **API officielle** : Support et stabilité garantis
+description:
+globs:
+alwaysApply: false
+---

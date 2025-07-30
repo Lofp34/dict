@@ -26,6 +26,15 @@ interface SavedNote {
   timestamp: Date;
   isProcessing?: boolean;
   type?: 'note' | 'email' | 'sms';
+  chatMessages?: ChatMessage[];
+}
+
+// Interface pour les messages de chat
+interface ChatMessage {
+  id: string;
+  content: string;
+  isUser: boolean;
+  timestamp: Date;
 }
 
 declare global {
@@ -90,6 +99,18 @@ const SaveWithAIIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const ChatIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-6 h-6 ${className}`}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 0 1 .778-.332 48.294 48.294 0 0 0 5.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+  </svg>
+);
+
+const SendIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-5 h-5 ${className}`}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+  </svg>
+);
+
 const App: React.FC = () => {
   const [transcript, setTranscript] = useState<string>('');
   const [interimTranscript, setInterimTranscript] = useState<string>('');
@@ -99,6 +120,8 @@ const App: React.FC = () => {
   const [isSupported, setIsSupported] = useState<boolean>(true);
   const [savedNotes, setSavedNotes] = useState<SavedNote[]>([]);
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
+  const [chatInputs, setChatInputs] = useState<{ [noteId: string]: string }>({});
+  const [openChats, setOpenChats] = useState<Set<string>>(new Set());
 
   const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
   const isStoppingInternallyRef = useRef<boolean>(false);
@@ -651,6 +674,137 @@ Réponds UNIQUEMENT avec un objet JSON valide :
     });
   }, []);
 
+  const toggleChat = useCallback((noteId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setOpenChats(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(noteId)) {
+        newSet.delete(noteId);
+      } else {
+        newSet.add(noteId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleChatInputChange = useCallback((noteId: string, value: string) => {
+    setChatInputs(prev => ({
+      ...prev,
+      [noteId]: value
+    }));
+  }, []);
+
+  const handleSendChatMessage = useCallback(async (noteId: string) => {
+    const message = chatInputs[noteId]?.trim();
+    if (!message || !ai) return;
+
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      content: message,
+      isUser: true,
+      timestamp: new Date()
+    };
+
+    // Ajouter le message utilisateur
+    setSavedNotes(prev => prev.map(note => 
+      note.id === noteId 
+        ? { 
+            ...note, 
+            chatMessages: [...(note.chatMessages || []), userMessage]
+          }
+        : note
+    ));
+
+    // Vider l'input
+    setChatInputs(prev => ({
+      ...prev,
+      [noteId]: ''
+    }));
+
+    try {
+      // Créer une session de chat avec l'historique existant
+      const note = savedNotes.find(n => n.id === noteId);
+      const chatHistory = (note?.chatMessages || []).map(msg => ({
+        role: msg.isUser ? "user" as const : "model" as const,
+        parts: [{ text: msg.content }]
+      }));
+
+      // Ajouter le contexte de la note au début de l'historique
+      const contextMessage = {
+        role: "user" as const,
+        parts: [{ text: `Note originale : "${note?.originalText}"\n\nSuggestions : ${note?.suggestions?.join(', ') || 'Aucune'}\n\nTu es un assistant expert en stratégie commerciale et développement de produits. Réponds de manière concise et utile.` }]
+      };
+
+      const chat = ai.chats.create({
+        model: "gemini-2.5-flash",
+        history: [contextMessage, ...chatHistory]
+      });
+
+      // Créer un message IA temporaire pour le streaming
+      const tempAiMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        content: "",
+        isUser: false,
+        timestamp: new Date()
+      };
+
+      // Ajouter le message temporaire
+      setSavedNotes(prev => prev.map(note => 
+        note.id === noteId 
+          ? { 
+              ...note, 
+              chatMessages: [...(note.chatMessages || []), tempAiMessage]
+            }
+          : note
+      ));
+
+      // Envoyer le message avec streaming
+      const stream = await chat.sendMessageStream({
+        message: message
+      });
+
+      let fullResponse = "";
+      
+      // Traiter le streaming en temps réel
+      for await (const chunk of stream) {
+        fullResponse += chunk.text;
+        
+        // Mettre à jour le message en temps réel
+        setSavedNotes(prev => prev.map(note => 
+          note.id === noteId 
+            ? { 
+                ...note, 
+                chatMessages: note.chatMessages?.map(msg => 
+                  msg.id === tempAiMessage.id 
+                    ? { ...msg, content: fullResponse }
+                    : msg
+                ) || []
+              }
+            : note
+        ));
+      }
+
+    } catch (error) {
+      console.error('Erreur lors de la génération de la réponse:', error);
+      
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        content: "Désolé, une erreur s'est produite lors de la génération de la réponse.",
+        isUser: false,
+        timestamp: new Date()
+      };
+
+      setSavedNotes(prev => prev.map(note => 
+        note.id === noteId 
+          ? { 
+              ...note, 
+              chatMessages: [...(note.chatMessages || []), errorMessage]
+            }
+          : note
+      ));
+    }
+  }, [chatInputs, ai, savedNotes]);
+
   const formatTimestamp = (date: Date): string => {
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
@@ -912,8 +1066,38 @@ Réponds UNIQUEMENT avec un objet JSON valide :
                     {/* Vue étendue (contenu complet) */}
                     {isExpanded && (
                       <>
-                        <div className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto">
-                          {displayText}
+                        <div className="text-slate-700 text-sm leading-relaxed max-h-60 overflow-y-auto">
+                          {/* Affichage formaté du texte structuré */}
+                          <div className="prose prose-sm max-w-none">
+                            {displayText.split('\n').map((line, index) => {
+                              // Détection et formatage des éléments Markdown
+                              if (line.startsWith('## ')) {
+                                return <h3 key={index} className="text-lg font-semibold text-slate-800 mt-3 mb-2">{line.substring(3)}</h3>;
+                              }
+                              if (line.startsWith('# ')) {
+                                return <h2 key={index} className="text-xl font-bold text-slate-800 mt-4 mb-3">{line.substring(2)}</h2>;
+                              }
+                              if (line.startsWith('### ')) {
+                                return <h4 key={index} className="text-base font-semibold text-slate-700 mt-2 mb-1">{line.substring(4)}</h4>;
+                              }
+                              if (line.startsWith('- ') || line.startsWith('* ')) {
+                                return <li key={index} className="ml-4 text-slate-600">{line.substring(2)}</li>;
+                              }
+                              if (line.startsWith('1. ')) {
+                                return <li key={index} className="ml-4 text-slate-600 list-decimal">{line.substring(3)}</li>;
+                              }
+                              if (line.startsWith('**') && line.endsWith('**')) {
+                                return <p key={index} className="font-semibold text-slate-800">{line.substring(2, line.length - 2)}</p>;
+                              }
+                              if (line.startsWith('*') && line.endsWith('*')) {
+                                return <p key={index} className="italic text-slate-700">{line.substring(1, line.length - 1)}</p>;
+                              }
+                              if (line.trim() === '') {
+                                return <br key={index} />;
+                              }
+                              return <p key={index} className="mb-2">{line}</p>;
+                            })}
+                          </div>
                         </div>
                         
                         {/* Suggestions (si disponibles) */}
@@ -928,6 +1112,74 @@ Réponds UNIQUEMENT avec un objet JSON valide :
                                 </li>
                               ))}
                             </ul>
+                          </div>
+                        )}
+
+                        {/* Bouton Chat */}
+                        {!note.isProcessing && (
+                          <div className="mt-3 pt-3 border-t border-slate-200">
+                            <button
+                              onClick={(e) => toggleChat(note.id, e)}
+                              className="flex items-center space-x-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                            >
+                              <ChatIcon className="w-4 h-4" />
+                              <span>Chat avec l'IA</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Zone de Chat */}
+                        {openChats.has(note.id) && (
+                          <div className="mt-3 pt-3 border-t border-slate-200">
+                            <div className="bg-slate-50 rounded-lg p-3 max-h-48 overflow-y-auto">
+                              {/* Messages existants */}
+                              {note.chatMessages && note.chatMessages.length > 0 ? (
+                                <div className="space-y-2 mb-3">
+                                  {note.chatMessages.map((msg) => (
+                                    <div
+                                      key={msg.id}
+                                      className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}
+                                    >
+                                      <div
+                                        className={`max-w-xs px-3 py-2 rounded-lg text-xs ${
+                                          msg.isUser
+                                            ? 'bg-indigo-500 text-white'
+                                            : 'bg-white text-slate-700 border border-slate-200'
+                                        }`}
+                                      >
+                                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                                        <p className={`text-xs mt-1 ${msg.isUser ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                          {formatTimestamp(msg.timestamp)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-slate-500 italic mb-3">
+                                  Commencez une conversation avec l'IA sur cette note...
+                                </p>
+                              )}
+
+                              {/* Input de message */}
+                              <div className="flex space-x-2">
+                                <input
+                                  type="text"
+                                  value={chatInputs[note.id] || ''}
+                                  onChange={(e) => handleChatInputChange(note.id, e.target.value)}
+                                  onKeyPress={(e) => e.key === 'Enter' && handleSendChatMessage(note.id)}
+                                  placeholder="Posez une question..."
+                                  className="flex-1 text-xs px-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                                <button
+                                  onClick={() => handleSendChatMessage(note.id)}
+                                  disabled={!chatInputs[note.id]?.trim()}
+                                  className="px-2 py-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  <SendIcon className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </>
