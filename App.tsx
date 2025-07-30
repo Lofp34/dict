@@ -80,6 +80,10 @@ const App: React.FC = () => {
   const [notification, setNotification] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState<boolean>(true);
   const [savedNotes, setSavedNotes] = useState<SavedNote[]>([]);
+  const [confidence, setConfidence] = useState<number>(0);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [autoPunctuation, setAutoPunctuation] = useState<boolean>(true);
+  const [autoCorrection, setAutoCorrection] = useState<boolean>(true);
 
   const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
   const isStoppingInternallyRef = useRef<boolean>(false);
@@ -129,6 +133,98 @@ const App: React.FC = () => {
       setNotification(null);
     }, 2000);
   };
+
+  // Fonction pour ajouter automatiquement la ponctuation
+  const addAutoPunctuation = useCallback((text: string): string => {
+    if (!autoPunctuation) return text;
+    
+    // Règles de ponctuation automatique
+    let processedText = text;
+    
+    // Ajouter un point si la phrase se termine par une majuscule suivie d'un espace
+    processedText = processedText.replace(/([A-ZÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ][a-zàâäéèêëïîôùûüÿç]+)\s+([A-ZÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ])/g, '$1. $2');
+    
+    // Ajouter un point à la fin si pas de ponctuation
+    if (processedText && !/[.!?]$/.test(processedText.trim())) {
+      processedText = processedText.trim() + '.';
+    }
+    
+    // Capitaliser la première lettre de chaque phrase
+    processedText = processedText.replace(/(^|\.\s+)([a-zàâäéèêëïîôùûüÿç])/g, (match, p1, p2) => p1 + p2.toUpperCase());
+    
+    return processedText;
+  }, [autoPunctuation]);
+
+  // Fonction pour corriger automatiquement le texte avec IA
+  const autoCorrectText = useCallback(async (text: string): Promise<string> => {
+    if (!autoCorrection || !ai || !text.trim()) return text;
+    
+    try {
+      const prompt = `
+Corrige et améliore ce texte dicté en français. Corrige :
+- Les erreurs de grammaire et d'orthographe
+- La ponctuation
+- Les espaces manquants ou en trop
+- Les mots mal reconnus
+
+Texte à corriger : "${text}"
+
+Réponds UNIQUEMENT avec le texte corrigé, sans explications ni commentaires.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "Tu es un expert en correction de texte français. Tu corriges uniquement les erreurs sans changer le sens.",
+        },
+      });
+
+      return (response.text || text).trim();
+    } catch (error) {
+      console.error('Erreur lors de la correction automatique:', error);
+      return text;
+    }
+  }, [autoCorrection, ai]);
+
+  // Fonction pour détecter et traiter les commandes vocales
+  const processVoiceCommands = useCallback((text: string): { isCommand: boolean; action?: string; cleanedText?: string } => {
+    const lowerText = text.toLowerCase().trim();
+    
+    // Commandes de ponctuation
+    if (lowerText.includes('point') || lowerText.includes('période')) {
+      return { isCommand: true, action: 'addPunctuation', cleanedText: text.replace(/point|période/gi, '.') };
+    }
+    if (lowerText.includes('virgule')) {
+      return { isCommand: true, action: 'addComma', cleanedText: text.replace(/virgule/gi, ',') };
+    }
+    if (lowerText.includes('point d interrogation') || lowerText.includes('question')) {
+      return { isCommand: true, action: 'addQuestion', cleanedText: text.replace(/point d interrogation|question/gi, '?') };
+    }
+    if (lowerText.includes('point d exclamation') || lowerText.includes('exclamation')) {
+      return { isCommand: true, action: 'addExclamation', cleanedText: text.replace(/point d exclamation|exclamation/gi, '!') };
+    }
+    
+    // Commandes de formatage
+    if (lowerText.includes('nouvelle ligne') || lowerText.includes('ligne suivante')) {
+      return { isCommand: true, action: 'newLine', cleanedText: text.replace(/nouvelle ligne|ligne suivante/gi, '\n') };
+    }
+    if (lowerText.includes('paragraphe')) {
+      return { isCommand: true, action: 'newParagraph', cleanedText: text.replace(/paragraphe/gi, '\n\n') };
+    }
+    
+    // Commandes de contrôle
+    if (lowerText.includes('effacer') || lowerText.includes('supprimer tout')) {
+      return { isCommand: true, action: 'clear' };
+    }
+    if (lowerText.includes('sauvegarder') || lowerText.includes('enregistrer')) {
+      return { isCommand: true, action: 'save' };
+    }
+    if (lowerText.includes('copier')) {
+      return { isCommand: true, action: 'copy' };
+    }
+    
+    return { isCommand: false };
+  }, []);
   
   useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -160,27 +256,90 @@ const App: React.FC = () => {
     recognition.onresult = (event: any) => { 
       let finalTranscriptChunk = '';
       let currentInterim = '';
+      let totalConfidence = 0;
+      let confidenceCount = 0;
 
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         const segment = event.results[i][0].transcript;
+        const confidence = event.results[i][0].confidence || 0;
+        
         if (event.results[i].isFinal) {
           finalTranscriptChunk += segment;
+          totalConfidence += confidence;
+          confidenceCount++;
         } else {
           currentInterim += segment;
         }
       }
       
-      if (finalTranscriptChunk) {
-         setTranscript(prev => {
-            const separator = (prev && !/\s$/.test(prev) && finalTranscriptChunk && !finalTranscriptChunk.startsWith(' ')) ? ' ' : '';
-            let newText = (prev + separator + finalTranscriptChunk).trim();
-            // Add a space after common sentence-ending punctuation for better flow in next dictation
-            if (/[.?!]$/.test(finalTranscriptChunk.trim())) {
-              newText += ' ';
-            }
-            return newText;
-         });
+      // Mettre à jour la confiance moyenne
+      if (confidenceCount > 0) {
+        setConfidence(totalConfidence / confidenceCount);
       }
+      
+      if (finalTranscriptChunk) {
+        // Traiter les commandes vocales
+        const commandResult = processVoiceCommands(finalTranscriptChunk);
+        
+        if (commandResult.isCommand) {
+          // Exécuter la commande vocale
+          switch (commandResult.action) {
+            case 'clear':
+              handleClear();
+              showNotification("Texte effacé par commande vocale");
+              return;
+            case 'save':
+              handleSaveNote();
+              showNotification("Note sauvegardée par commande vocale");
+              return;
+            case 'copy':
+              handleCopy();
+              showNotification("Texte copié par commande vocale");
+              return;
+            case 'addPunctuation':
+            case 'addComma':
+            case 'addQuestion':
+            case 'addExclamation':
+            case 'newLine':
+            case 'newParagraph':
+              // Appliquer le texte modifié
+              finalTranscriptChunk = commandResult.cleanedText || finalTranscriptChunk;
+              break;
+          }
+        }
+        
+        // Appliquer la ponctuation automatique
+        finalTranscriptChunk = addAutoPunctuation(finalTranscriptChunk);
+        
+        setTranscript(prev => {
+          const separator = (prev && !/\s$/.test(prev) && finalTranscriptChunk && !finalTranscriptChunk.startsWith(' ')) ? ' ' : '';
+          let newText = (prev + separator + finalTranscriptChunk).trim();
+          
+          // Add a space after common sentence-ending punctuation for better flow in next dictation
+          if (/[.?!]$/.test(finalTranscriptChunk.trim())) {
+            newText += ' ';
+          }
+          return newText;
+        });
+        
+        // Correction automatique en arrière-plan si activée
+        if (autoCorrection && ai) {
+          setIsProcessing(true);
+          autoCorrectText(finalTranscriptChunk).then(correctedText => {
+            if (correctedText !== finalTranscriptChunk) {
+              setTranscript(prev => {
+                const lastSegment = prev.split(' ').slice(-finalTranscriptChunk.split(' ').length).join(' ');
+                return prev.replace(lastSegment, correctedText);
+              });
+              showNotification("Texte corrigé automatiquement");
+            }
+            setIsProcessing(false);
+          }).catch(() => {
+            setIsProcessing(false);
+          });
+        }
+      }
+      
       setInterimTranscript(currentInterim.trim());
     };
 
@@ -687,6 +846,57 @@ Réponds UNIQUEMENT avec un objet JSON valide :
         Dictée Magique
       </h1>
 
+      {/* Contrôles de reconnaissance vocale */}
+      <div className="w-full max-w-2xl mb-6 bg-white/60 backdrop-blur-lg rounded-xl p-4 shadow-lg">
+        <div className="flex flex-wrap items-center justify-center gap-4 text-sm">
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoPunctuation}
+              onChange={(e) => setAutoPunctuation(e.target.checked)}
+              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+            />
+            <span className="text-slate-700">Ponctuation automatique</span>
+          </label>
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoCorrection}
+              onChange={(e) => setAutoCorrection(e.target.checked)}
+              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+            />
+            <span className="text-slate-700">Correction automatique IA</span>
+          </label>
+        </div>
+        
+        {/* Indicateur de confiance */}
+        {isListening && confidence > 0 && (
+          <div className="mt-3 text-center">
+            <div className="text-xs text-slate-600 mb-1">Confiance de reconnaissance</div>
+            <div className="w-full bg-slate-200 rounded-full h-2">
+              <div 
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  confidence > 0.8 ? 'bg-green-500' : 
+                  confidence > 0.6 ? 'bg-yellow-500' : 'bg-red-500'
+                }`}
+                style={{ width: `${confidence * 100}%` }}
+              ></div>
+            </div>
+            <div className="text-xs text-slate-500 mt-1">{Math.round(confidence * 100)}%</div>
+          </div>
+        )}
+        
+        {/* Indicateur de traitement */}
+        {isProcessing && (
+          <div className="mt-3 text-center">
+            <div className="inline-flex items-center space-x-2 text-sm text-blue-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span>Correction automatique en cours...</span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {error && (
         <div className="w-full max-w-2xl bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded-md shadow-md" role="alert">
           <p className="font-bold">Erreur</p>
@@ -788,8 +998,36 @@ Réponds UNIQUEMENT avec un objet JSON valide :
         </div>
       </div>
 
-
-
+      {/* Aide des commandes vocales */}
+      <div className="w-full max-w-4xl mt-6 bg-white/60 backdrop-blur-lg rounded-xl p-4 shadow-lg">
+        <h3 className="text-lg font-semibold text-slate-700 mb-3 text-center">🎤 Commandes Vocales Disponibles</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+          <div className="space-y-2">
+            <h4 className="font-medium text-slate-600">Ponctuation</h4>
+            <div className="space-y-1 text-slate-500">
+              <div>"<strong>point</strong>" ou "<strong>période</strong>" → .</div>
+              <div>"<strong>virgule</strong>" → ,</div>
+              <div>"<strong>point d'interrogation</strong>" → ?</div>
+              <div>"<strong>point d'exclamation</strong>" → !</div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h4 className="font-medium text-slate-600">Formatage</h4>
+            <div className="space-y-1 text-slate-500">
+              <div>"<strong>nouvelle ligne</strong>" → ↵</div>
+              <div>"<strong>paragraphe</strong>" → ↵↵</div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h4 className="font-medium text-slate-600">Actions</h4>
+            <div className="space-y-1 text-slate-500">
+              <div>"<strong>effacer</strong>" → Vide le texte</div>
+              <div>"<strong>sauvegarder</strong>" → Sauvegarde la note</div>
+              <div>"<strong>copier</strong>" → Copie le texte</div>
+            </div>
+          </div>
+        </div>
+      </div>
       {/* Section des notes sauvegardées */}
       {savedNotes.length > 0 && (
         <div className="w-full max-w-4xl mt-8">
