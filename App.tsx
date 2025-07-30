@@ -1125,7 +1125,41 @@ Réponds UNIQUEMENT avec un objet JSON valide :
                                             : 'bg-white text-slate-700 border border-slate-200'
                                         }`}
                                       >
-                                        <p className="whitespace-pre-wrap pr-6">{msg.content}</p>
+                                        <div className="pr-6 prose prose-sm max-w-none">
+                                          {msg.content.split('\n').map((line, lineIndex) => {
+                                            // Titres
+                                            if (line.startsWith('## ')) {
+                                              return <h3 key={lineIndex} className="text-sm font-semibold mt-2 mb-1">{line.substring(3)}</h3>;
+                                            }
+                                            if (line.startsWith('### ')) {
+                                              return <h4 key={lineIndex} className="text-xs font-semibold mt-2 mb-1">{line.substring(4)}</h4>;
+                                            }
+                                            if (line.startsWith('# ')) {
+                                              return <h2 key={lineIndex} className="text-base font-bold mt-2 mb-1">{line.substring(2)}</h2>;
+                                            }
+                                            
+                                            // Listes
+                                            if (line.startsWith('- ') || line.startsWith('* ')) {
+                                              return <li key={lineIndex} className="ml-4">{line.substring(2)}</li>;
+                                            }
+                                            if (line.match(/^\d+\. /)) {
+                                              return <li key={lineIndex} className="ml-4">{line.replace(/^\d+\. /, '')}</li>;
+                                            }
+                                            
+                                            // Texte en gras et italique
+                                            let processedLine = line;
+                                            processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                                            processedLine = processedLine.replace(/\*(.*?)\*/g, '<em>$1</em>');
+                                            
+                                            // Ligne vide
+                                            if (line.trim() === '') {
+                                              return <br key={lineIndex} />;
+                                            }
+                                            
+                                            // Texte normal
+                                            return <p key={lineIndex} className="mb-1" dangerouslySetInnerHTML={{ __html: processedLine }} />;
+                                          })}
+                                        </div>
                                         <div className="flex justify-between items-center mt-1">
                                           <p className={`text-xs ${msg.isUser ? 'text-indigo-100' : 'text-slate-400'}`}>
                                             {formatTimestamp(msg.timestamp)}
