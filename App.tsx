@@ -663,8 +663,7 @@ Réponds UNIQUEMENT avec un objet JSON valide :
     showNotification("Note supprimée.");
   }, []);
 
-  const toggleNoteExpansion = useCallback((noteId: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Empêcher la copie lors du clic sur le bouton
+  const toggleNoteExpansion = useCallback((noteId: string) => {
     setExpandedNotes(prev => {
       const newSet = new Set(prev);
       if (newSet.has(noteId)) {
@@ -994,7 +993,8 @@ Réponds UNIQUEMENT avec un objet JSON valide :
               return (
                 <div
                   key={note.id}
-                  className="bg-white/80 backdrop-blur-lg shadow-lg rounded-xl p-4 hover:shadow-xl transition-all duration-300 border border-slate-200"
+                  className="bg-white/80 backdrop-blur-lg shadow-lg rounded-xl p-4 hover:shadow-xl transition-all duration-300 border border-slate-200 cursor-pointer"
+                  onClick={() => toggleNoteExpansion(note.id)}
                 >
                   {/* En-tête de la carte */}
                   <div className="flex justify-between items-start mb-3">
@@ -1014,18 +1014,6 @@ Réponds UNIQUEMENT avec un objet JSON valide :
                       )}
                     </div>
                     <div className="flex items-center space-x-1">
-                      {/* Bouton d'expansion/réduction */}
-                      <button
-                        onClick={(e) => toggleNoteExpansion(note.id, e)}
-                        className="text-slate-500 hover:text-slate-700 transition-colors p-1"
-                        aria-label={isExpanded ? "Réduire la note" : "Développer la note"}
-                      >
-                        {isExpanded ? (
-                          <ChevronUpIcon className="w-4 h-4" />
-                        ) : (
-                          <ChevronDownIcon className="w-4 h-4" />
-                        )}
-                      </button>
                       {/* Bouton de suppression */}
                       <button
                         onClick={(e) => {
@@ -1198,11 +1186,15 @@ Réponds UNIQUEMENT avec un objet JSON valide :
                                     onKeyPress={(e) => e.key === 'Enter' && handleSendChatMessage(note.id)}
                                     placeholder="Posez une question à l'IA..."
                                     className="w-full text-xs pl-8 pr-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    onClick={(e) => e.stopPropagation()}
                                   />
                                   <ChatIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-slate-400" />
                                 </div>
                                 <button
-                                  onClick={() => handleSendChatMessage(note.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendChatMessage(note.id);
+                                  }}
                                   disabled={!chatInputs[note.id]?.trim()}
                                   className="px-2 py-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                   title="Envoyer le message"
@@ -1224,7 +1216,10 @@ Réponds UNIQUEMENT avec un objet JSON valide :
                     </div>
                     {!note.isProcessing && (
                       <button
-                        onClick={() => handleCopyNote(note)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyNote(note);
+                        }}
                         className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
                       >
                         Copier
