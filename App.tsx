@@ -25,6 +25,7 @@ interface SavedNote {
   suggestions: string[];
   timestamp: Date;
   isProcessing?: boolean;
+  type?: 'note' | 'email';
 }
 
 declare global {
@@ -56,6 +57,12 @@ const TrashIcon: React.FC<{ className?: string }> = ({ className }) => (
 const XMarkIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-6 h-6 ${className}`}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
+const EnvelopeIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-6 h-6 ${className}`}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
   </svg>
 );
 
@@ -212,10 +219,10 @@ const App: React.FC = () => {
       if (recognitionRef.current) {
         isStoppingInternallyRef.current = true;
         recognitionRef.current.stop();
-        recognitionRef.current.onstart = null;
-        recognitionRef.current.onend = null;
-        recognitionRef.current.onresult = null;
-        recognitionRef.current.onerror = null;
+        recognitionRef.current.onstart = undefined;
+        recognitionRef.current.onend = undefined;
+        recognitionRef.current.onresult = undefined;
+        recognitionRef.current.onerror = undefined;
         recognitionRef.current = null;
       }
     };
@@ -356,7 +363,8 @@ IMPORTANT : Réponds UNIQUEMENT avec un objet JSON valide, sans backticks ni tex
       structuredText: "",
       suggestions: [],
       timestamp: new Date(),
-      isProcessing: true
+      isProcessing: true,
+      type: 'note'
     };
     
     setSavedNotes(prev => [newNote, ...prev]);
@@ -380,6 +388,110 @@ IMPORTANT : Réponds UNIQUEMENT avec un objet JSON valide, sans backticks ni tex
         showNotification("Erreur lors de la copie.");
       });
   }, []);
+
+  const handleGenerateEmail = useCallback(async () => {
+    const textToTransform = (transcript + (interimTranscript ? ((transcript && !/\s$/.test(transcript) ? ' ' : '') + interimTranscript) : '')).trim();
+    if (!textToTransform) {
+      showNotification("Rien à transformer en e-mail.");
+      return;
+    }
+
+    if (!ai) {
+      showNotification("IA non disponible pour la génération d'e-mail.");
+      return;
+    }
+
+    // Créer une nouvelle note email avec isProcessing = true
+    const emailNote: SavedNote = {
+      id: Date.now().toString(),
+      originalText: textToTransform,
+      title: "E-mail en cours de génération...",
+      structuredText: "",
+      suggestions: [],
+      timestamp: new Date(),
+      isProcessing: true,
+      type: 'email'
+    };
+
+    // Ajouter la note à la liste
+    setSavedNotes(prev => [emailNote, ...prev]);
+
+    try {
+      showNotification("Génération de l'e-mail en cours...");
+      
+      const prompt = `
+Tu es un expert en communication professionnelle. Transforme cette note en un e-mail professionnel complet.
+
+Note originale : "${textToTransform}"
+
+IMPORTANT : Génère un e-mail professionnel avec :
+- Objet approprié
+- Salutation professionnelle
+- Corps du message structuré et clair
+- Formule de politesse adaptée
+- Signature professionnelle
+
+Réponds UNIQUEMENT avec un objet JSON valide :
+
+{
+  "subject": "Objet de l'e-mail",
+  "body": "Corps complet de l'e-mail avec salutation, contenu et signature"
+}
+`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "Tu es un expert en communication professionnelle. Tu transformes des notes en e-mails professionnels impeccables.",
+        },
+      });
+
+      // Nettoyer la réponse de Gemini
+      let cleanResponse = (response.text || '').trim();
+      if (cleanResponse.startsWith('```json')) {
+        cleanResponse = cleanResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanResponse.startsWith('```')) {
+        cleanResponse = cleanResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      const emailData = JSON.parse(cleanResponse);
+      
+      // Mettre à jour la note avec les données de l'e-mail
+      const updatedNote: SavedNote = {
+        ...emailNote,
+        title: emailData.subject,
+        structuredText: emailData.body,
+        suggestions: [],
+        isProcessing: false
+      };
+
+      // Mettre à jour la note dans la liste
+      setSavedNotes(prev => prev.map(note => 
+        note.id === emailNote.id ? updatedNote : note
+      ));
+
+      showNotification("E-mail professionnel généré et sauvegardé !");
+      
+    } catch (error) {
+      console.error('Erreur lors de la génération d\'e-mail:', error);
+      
+      // Mettre à jour la note avec l'erreur
+      const errorNote: SavedNote = {
+        ...emailNote,
+        title: "Erreur lors de la génération",
+        structuredText: "Impossible de générer l'e-mail. Veuillez réessayer.",
+        suggestions: [],
+        isProcessing: false
+      };
+
+      setSavedNotes(prev => prev.map(note => 
+        note.id === emailNote.id ? errorNote : note
+      ));
+
+      showNotification("Erreur lors de la génération de l'e-mail.");
+    }
+  }, [transcript, interimTranscript, ai]);
 
   const handleDeleteNote = useCallback((noteId: string) => {
     setSavedNotes(prev => prev.filter(note => note.id !== noteId));
@@ -529,7 +641,7 @@ IMPORTANT : Réponds UNIQUEMENT avec un objet JSON valide, sans backticks ni tex
           />
         </div>
         
-        {/* Deuxième ligne : Copier et Sauvegarder côte à côte */}
+        {/* Deuxième ligne : Copier, Sauvegarder et E-mail */}
         <div className="flex items-center justify-center space-x-4">
           <IconButton
             onClick={handleCopy}
@@ -545,8 +657,17 @@ IMPORTANT : Réponds UNIQUEMENT avec un objet JSON valide, sans backticks ni tex
             className="bg-white/60 backdrop-blur-sm text-green-600 hover:bg-green-100/80 disabled:hover:bg-white/60 shadow-lg border border-green-200"
             disabled={!transcript && !interimTranscript}
           />
+          <IconButton
+            onClick={handleGenerateEmail}
+            icon={<EnvelopeIcon className="w-6 h-6 sm:w-7 sm:h-7" />}
+            label="Générer un e-mail"
+            className="bg-white/60 backdrop-blur-sm text-purple-600 hover:bg-purple-100/80 disabled:hover:bg-white/60 shadow-lg border border-purple-200"
+            disabled={!transcript && !interimTranscript}
+          />
         </div>
       </div>
+
+
 
       {/* Section des notes sauvegardées */}
       {savedNotes.length > 0 && (
@@ -562,9 +683,16 @@ IMPORTANT : Réponds UNIQUEMENT avec un objet JSON valide, sans backticks ni tex
                 onClick={() => handleCopyNote(note)}
               >
                 <div className="flex justify-between items-start mb-3">
-                  <span className="text-xs text-slate-500 font-medium">
-                    {formatTimestamp(note.timestamp)}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-slate-500 font-medium">
+                      {formatTimestamp(note.timestamp)}
+                    </span>
+                    {note.type === 'email' && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
+                        📧 E-mail
+                      </span>
+                    )}
+                  </div>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
