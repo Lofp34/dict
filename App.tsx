@@ -121,7 +121,6 @@ const App: React.FC = () => {
   const [savedNotes, setSavedNotes] = useState<SavedNote[]>([]);
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   const [chatInputs, setChatInputs] = useState<{ [noteId: string]: string }>({});
-  const [openChats, setOpenChats] = useState<Set<string>>(new Set());
 
   const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
   const isStoppingInternallyRef = useRef<boolean>(false);
@@ -677,18 +676,7 @@ Réponds UNIQUEMENT avec un objet JSON valide :
     });
   }, []);
 
-  const toggleChat = useCallback((noteId: string, event: React.MouseEvent) => {
-    event.stopPropagation();
-    setOpenChats(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(noteId)) {
-        newSet.delete(noteId);
-      } else {
-        newSet.add(noteId);
-      }
-      return newSet;
-    });
-  }, []);
+
 
   const handleChatInputChange = useCallback((noteId: string, value: string) => {
     setChatInputs(prev => ({
@@ -1118,21 +1106,8 @@ Réponds UNIQUEMENT avec un objet JSON valide :
                           </div>
                         )}
 
-                        {/* Bouton Chat */}
+                        {/* Zone de Chat - Affichage direct */}
                         {!note.isProcessing && (
-                          <div className="mt-3 pt-3 border-t border-slate-200">
-                            <button
-                              onClick={(e) => toggleChat(note.id, e)}
-                              className="flex items-center space-x-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
-                            >
-                              <ChatIcon className="w-4 h-4" />
-                              <span>Chat avec l'IA</span>
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Zone de Chat */}
-                        {openChats.has(note.id) && (
                           <div className="mt-3 pt-3 border-t border-slate-200">
                             <div className="bg-slate-50 rounded-lg p-3 max-h-48 overflow-y-auto">
                               {/* Messages existants */}
@@ -1144,40 +1119,59 @@ Réponds UNIQUEMENT avec un objet JSON valide :
                                       className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}
                                     >
                                       <div
-                                        className={`max-w-xs px-3 py-2 rounded-lg text-xs ${
+                                        className={`max-w-xs px-3 py-2 rounded-lg text-xs relative ${
                                           msg.isUser
                                             ? 'bg-indigo-500 text-white'
                                             : 'bg-white text-slate-700 border border-slate-200'
                                         }`}
                                       >
-                                        <p className="whitespace-pre-wrap">{msg.content}</p>
-                                        <p className={`text-xs mt-1 ${msg.isUser ? 'text-indigo-100' : 'text-slate-400'}`}>
-                                          {formatTimestamp(msg.timestamp)}
-                                        </p>
+                                        <p className="whitespace-pre-wrap pr-6">{msg.content}</p>
+                                        <div className="flex justify-between items-center mt-1">
+                                          <p className={`text-xs ${msg.isUser ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                            {formatTimestamp(msg.timestamp)}
+                                          </p>
+                                          {/* Bouton de copie pour les réponses IA */}
+                                          {!msg.isUser && msg.content && (
+                                            <button
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(msg.content);
+                                                showNotification("Réponse copiée !");
+                                              }}
+                                              className="ml-2 text-slate-500 hover:text-slate-700 transition-colors"
+                                              title="Copier la réponse"
+                                            >
+                                              <CopyIcon className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
                                   ))}
                                 </div>
                               ) : (
                                 <p className="text-xs text-slate-500 italic mb-3">
-                                  Commencez une conversation avec l'IA sur cette note...
+                                  Posez une question à l'IA sur cette note...
                                 </p>
                               )}
 
-                              {/* Input de message */}
+                              {/* Input de message avec icône chat */}
                               <div className="flex space-x-2">
-                                <input
-                                  type="text"
-                                  value={chatInputs[note.id] || ''}
-                                  onChange={(e) => handleChatInputChange(note.id, e.target.value)}
-                                  onKeyPress={(e) => e.key === 'Enter' && handleSendChatMessage(note.id)}
-                                  placeholder="Posez une question..."
-                                  className="flex-1 text-xs px-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
+                                <div className="flex-1 relative">
+                                  <input
+                                    type="text"
+                                    value={chatInputs[note.id] || ''}
+                                    onChange={(e) => handleChatInputChange(note.id, e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleSendChatMessage(note.id)}
+                                    placeholder="Posez une question à l'IA..."
+                                    className="w-full text-xs pl-8 pr-2 py-1 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  />
+                                  <ChatIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-slate-400" />
+                                </div>
                                 <button
                                   onClick={() => handleSendChatMessage(note.id)}
                                   disabled={!chatInputs[note.id]?.trim()}
                                   className="px-2 py-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                  title="Envoyer le message"
                                 >
                                   <SendIcon className="w-3 h-3" />
                                 </button>
