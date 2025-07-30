@@ -72,6 +72,18 @@ const ChatBubbleIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+const ChevronDownIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-4 h-4 ${className}`}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+  </svg>
+);
+
+const ChevronUpIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-4 h-4 ${className}`}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+  </svg>
+);
+
 const App: React.FC = () => {
   const [transcript, setTranscript] = useState<string>('');
   const [interimTranscript, setInterimTranscript] = useState<string>('');
@@ -84,6 +96,7 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [autoPunctuation, setAutoPunctuation] = useState<boolean>(true);
   const [autoCorrection, setAutoCorrection] = useState<boolean>(true);
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
 
   const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
   const isStoppingInternallyRef = useRef<boolean>(false);
@@ -764,7 +777,26 @@ Réponds UNIQUEMENT avec un objet JSON valide :
 
   const handleDeleteNote = useCallback((noteId: string) => {
     setSavedNotes(prev => prev.filter(note => note.id !== noteId));
+    // Retirer aussi de la liste des notes étendues
+    setExpandedNotes(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(noteId);
+      return newSet;
+    });
     showNotification("Note supprimée.");
+  }, []);
+
+  const toggleNoteExpansion = useCallback((noteId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Empêcher la copie lors du clic sur le bouton
+    setExpandedNotes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(noteId)) {
+        newSet.delete(noteId);
+      } else {
+        newSet.add(noteId);
+      }
+      return newSet;
+    });
   }, []);
 
   const formatTimestamp = (date: Date): string => {
@@ -1035,63 +1067,116 @@ Réponds UNIQUEMENT avec un objet JSON valide :
             Notes Sauvegardées
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {savedNotes.map((note) => (
-              <div
-                key={note.id}
-                className="bg-white/80 backdrop-blur-lg shadow-lg rounded-xl p-4 hover:shadow-xl transition-shadow cursor-pointer border border-slate-200"
-                onClick={() => handleCopyNote(note)}
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs text-slate-500 font-medium">
-                      {formatTimestamp(note.timestamp)}
-                    </span>
-                    {note.type === 'email' && (
-                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
-                        📧 E-mail
+            {savedNotes.map((note) => {
+              const isExpanded = expandedNotes.has(note.id);
+              const displayText = note.isProcessing ? note.originalText : note.structuredText;
+              const firstLine = displayText.split('\n')[0];
+              
+              return (
+                <div
+                  key={note.id}
+                  className="bg-white/80 backdrop-blur-lg shadow-lg rounded-xl p-4 hover:shadow-xl transition-all duration-300 border border-slate-200"
+                >
+                  {/* En-tête de la carte */}
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-slate-500 font-medium">
+                        {formatTimestamp(note.timestamp)}
                       </span>
+                      {note.type === 'email' && (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
+                          📧 E-mail
+                        </span>
+                      )}
+                      {note.type === 'sms' && (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
+                          💬 SMS
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      {/* Bouton d'expansion/réduction */}
+                      <button
+                        onClick={(e) => toggleNoteExpansion(note.id, e)}
+                        className="text-slate-500 hover:text-slate-700 transition-colors p-1"
+                        aria-label={isExpanded ? "Réduire la note" : "Développer la note"}
+                      >
+                        {isExpanded ? (
+                          <ChevronUpIcon className="w-4 h-4" />
+                        ) : (
+                          <ChevronDownIcon className="w-4 h-4" />
+                        )}
+                      </button>
+                      {/* Bouton de suppression */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteNote(note.id);
+                        }}
+                        className="text-red-500 hover:text-red-700 transition-colors p-1"
+                        aria-label="Supprimer la note"
+                      >
+                        <XMarkIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Titre de la note */}
+                  <h3 className="text-sm font-semibold text-slate-800 mb-2">
+                    {note.isProcessing ? "⏳ Traitement en cours..." : note.title}
+                  </h3>
+
+                  {/* Contenu de la note */}
+                  <div className="space-y-2">
+                    {/* Vue réduite (première ligne seulement) */}
+                    {!isExpanded && (
+                      <p className="text-slate-700 text-sm leading-relaxed line-clamp-2 mb-2">
+                        {firstLine}
+                      </p>
                     )}
-                    {note.type === 'sms' && (
-                      <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-                        💬 SMS
-                      </span>
+
+                    {/* Vue étendue (contenu complet) */}
+                    {isExpanded && (
+                      <>
+                        <div className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto">
+                          {displayText}
+                        </div>
+                        
+                        {/* Suggestions (si disponibles) */}
+                        {!note.isProcessing && note.suggestions.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-slate-200">
+                            <p className="text-xs text-slate-600 font-medium mb-2">Suggestions :</p>
+                            <ul className="text-xs text-slate-500 space-y-1">
+                              {note.suggestions.map((suggestion, index) => (
+                                <li key={index} className="flex items-start">
+                                  <span className="text-indigo-500 mr-1">•</span>
+                                  <span>{suggestion}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteNote(note.id);
-                    }}
-                    className="text-red-500 hover:text-red-700 transition-colors p-1"
-                    aria-label="Supprimer la note"
-                  >
-                    <XMarkIcon className="w-4 h-4" />
-                  </button>
-                </div>
-                <h3 className="text-sm font-semibold text-slate-800 mb-2">
-                  {note.isProcessing ? "⏳ Traitement en cours..." : note.title}
-                </h3>
-                <p className="text-slate-700 text-sm leading-relaxed line-clamp-4 mb-2">
-                  {note.isProcessing ? note.originalText : note.structuredText}
-                </p>
-                {!note.isProcessing && note.suggestions.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-xs text-slate-600 font-medium mb-1">Suggestions :</p>
-                    <ul className="text-xs text-slate-500 space-y-1">
-                      {note.suggestions.slice(0, 2).map((suggestion, index) => (
-                        <li key={index} className="flex items-start">
-                          <span className="text-indigo-500 mr-1">•</span>
-                          <span className="line-clamp-2">{suggestion}</span>
-                        </li>
-                      ))}
-                    </ul>
+
+                  {/* Actions */}
+                  <div className="mt-3 flex justify-between items-center">
+                    <div className="text-xs text-slate-500">
+                      {note.isProcessing ? "Traitement en cours..." : `${isExpanded ? "Vue complète" : "Vue réduite"}`}
+                    </div>
+                    {!note.isProcessing && (
+                      <button
+                        onClick={() => handleCopyNote(note)}
+                        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                      >
+                        Copier
+                      </button>
+                    )}
                   </div>
-                )}
-                <div className="mt-3 text-xs text-indigo-600 font-medium">
-                  {note.isProcessing ? "Traitement en cours..." : "Cliquez pour copier"}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
