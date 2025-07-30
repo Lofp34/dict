@@ -341,7 +341,7 @@ IMPORTANT : Réponds UNIQUEMENT avec un objet JSON valide, sans backticks ni tex
 `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-pro",
         contents: prompt,
         config: {
           systemInstruction: "Tu es un expert en stratégie commerciale et développement de produits. Tu analyses des notes professionnelles pour les améliorer et proposer des pistes d'approfondissement.",
@@ -470,7 +470,7 @@ Réponds UNIQUEMENT avec un objet JSON valide :
 `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-pro",
         contents: prompt,
         config: {
           systemInstruction: "Tu es un expert en communication professionnelle. Tu transformes des notes en e-mails professionnels impeccables.",
