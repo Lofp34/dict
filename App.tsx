@@ -1560,8 +1560,8 @@ Réponds UNIQUEMENT avec un objet JSON valide :
               return (
                 <div
                   key={note.id}
-                  className="bg-white/80 backdrop-blur-lg shadow-lg rounded-xl p-4 hover:shadow-xl transition-all duration-300 border border-slate-200 cursor-pointer"
-                  onClick={() => toggleNoteExpansion(note.id)}
+                  className={`bg-white/80 backdrop-blur-lg shadow-lg rounded-xl p-4 hover:shadow-xl transition-all duration-300 border border-slate-200 ${!isExpanded ? 'cursor-pointer' : 'cursor-default'}`}
+                  onClick={() => !isExpanded && toggleNoteExpansion(note.id)}
                 >
                   {/* En-tête de la carte */}
                   <div className="flex justify-between items-start mb-3">
@@ -1833,9 +1833,21 @@ Réponds UNIQUEMENT avec un objet JSON valide :
 
                   {/* Actions */}
                   <div className="mt-3 flex justify-between items-center">
-                    <div className="text-xs text-slate-500">
-                      {note.isProcessing ? "Traitement en cours..." : `${isExpanded ? "Vue complète" : "Vue réduite"}`}
-                    </div>
+                    {isExpanded ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleNoteExpansion(note.id);
+                        }}
+                        className="text-xs text-slate-500 hover:text-slate-700 font-medium transition-colors"
+                      >
+                        Fermer
+                      </button>
+                    ) : (
+                      <div className="text-xs text-slate-500">
+                        Aperçu
+                      </div>
+                    )}
                     {!note.isProcessing && (
                       <button
                         onClick={(e) => {
