@@ -17,31 +17,24 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Ignorer les requêtes non HTTP(S) (ex: chrome-extension://) et les méthodes non-GET
-  const url = event.request.url;
-  if (!/^https?:/i.test(url) || event.request.method !== 'GET') {
-    return; // laisser le navigateur gérer
-  }
-
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      if (response) return response;
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
+    caches.match(event.request)
+      .then((response) => {
+        if (response) {
+          return response;
         }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          // Optionnel: ne mettre en cache que le même origin
-          try {
-            const reqUrl = new URL(event.request.url);
-            if (reqUrl.origin === self.location.origin) {
-              cache.put(event.request, responseToCache);
+        return fetch(event.request)
+          .then((response) => {
+            if (!response || response.status !== 200 || response.type !== 'basic') {
+              return response;
             }
-          } catch {}
-        });
-        return networkResponse;
-      });
-    })
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                cache.put(event.request, responseToCache);
+              });
+            return response;
+          });
+      })
   );
 }); 
