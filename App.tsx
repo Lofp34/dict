@@ -82,6 +82,11 @@ declare global {
   interface Window {
     SpeechRecognition: { new(): CustomSpeechRecognition };        // API standard
     webkitSpeechRecognition: { new(): CustomSpeechRecognition };  // API WebKit (Safari)
+    // API Document Picture-in-Picture (Chrome/Edge)
+    documentPictureInPicture?: {
+      requestWindow: (options?: any) => Promise<Window>;
+      window?: Window;
+    };
   }
 }
 
@@ -298,6 +303,12 @@ const App: React.FC = () => {
    */
   const activeInputIdRef = useRef<string | null>(null);
 
+  /**
+   * Fenêtre flottante (Document Picture-in-Picture) pour rester au-dessus des autres fenêtres
+   * Compatible Chrome/Edge uniquement à ce jour. Fallback: message d'instructions macOS.
+   */
+  const pipWindowRef = useRef<Window | null>(null);
+
   // ============================================================================
   // INITIALISATION DE L'API GEMINI - INTELLIGENCE ARTIFICIELLE
   // ============================================================================
@@ -353,6 +364,111 @@ const App: React.FC = () => {
         console.error('Erreur lors du chargement des notes:', error);
       }
     }
+  }, []);
+
+  /**
+   * Ouvre une fenêtre flottante toujours au premier plan (Document PiP) si supporté
+   */
+  const openFloatingWindow = useCallback(async () => {
+    try {
+      const docPiP = window.documentPictureInPicture;
+      if (!docPiP || typeof docPiP.requestWindow !== 'function') {
+        showNotification(
+          "Fenêtre flottante non supportée. Sur Mac, installe l'app (PWA) puis dans le Dock: Options > Affecter à > Tous les bureaux."
+        );
+        return;
+      }
+
+      if (pipWindowRef.current && !pipWindowRef.current.closed) {
+        pipWindowRef.current.focus();
+        return;
+      }
+
+      const pipWin = await docPiP.requestWindow({ width: 380, height: 160 });
+      pipWindowRef.current = pipWin;
+      const d = pipWin.document;
+      d.title = "Dictée Magique — Fenêtre flottante";
+      d.body.style.margin = '0';
+      d.body.innerHTML = `
+        <style>
+          :root { color-scheme: light dark; }
+          @keyframes pulse { 0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.6);} 50%{ box-shadow:0 0 0 10px rgba(239,68,68,0);} }
+          body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: #ffffff; color:#0f172a; }
+          .wrap { display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid #e2e8f0; }
+          .btn { border:none; border-radius:9999px; width:42px; height:42px; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform .15s ease; }
+          .btn:hover { transform: scale(1.05); }
+          .status { display:flex; align-items:center; gap:8px; font-weight:600; font-size:14px; color:#334155; }
+          .dot { width:10px; height:10px; border-radius:999px; background:#64748b; }
+          .main { padding:8px 12px; font-size:12px; color:#475569; }
+          .stream { color:#0ea5e9; font-style:italic; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          .preview { color:#64748b; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        </style>
+        <div class="wrap">
+          <button id="mic-btn" class="btn" title="Basculer micro">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+              <path d="M8.25 4.5a3.75 3.75 0 1 1 7.5 0v8.25a3.75 3.75 0 1 1-7.5 0V4.5Z" />
+              <path d="M6 10.5a.75.75 0 0 1 .75.75v1.5a5.25 5.25 0 1 0 10.5 0v-1.5a.75.75 0 0 1 1.5 0v1.5a6.751 6.751 0 0 1-6 6.709v2.041h3a.75.75 0 0 1 0 1.5h-7.5a.75.75 0 0 1 0-1.5h3v-2.041a6.751 6.751 0 0 1-6-6.709v-1.5A.75.75 0 0 1 6 10.5Z" />
+            </svg>
+          </button>
+          <div class="status"><div id="status-dot" class="dot"></div><div id="status-text">Initialisation…</div></div>
+        </div>
+        <div class="main">
+          <div id="interim" class="stream"></div>
+          <div id="preview" class="preview"></div>
+        </div>
+      `;
+
+      d.getElementById('mic-btn')?.addEventListener('click', () => {
+        handleListen();
+      });
+
+      pipWin.addEventListener('unload', () => {
+        pipWindowRef.current = null;
+      });
+
+      // Première mise à jour d'UI
+      // Le contenu sera maintenu à jour par l'effet ci-dessous
+    } catch (e) {
+      console.error(e);
+      showNotification("Impossible d'ouvrir la fenêtre flottante.");
+    }
+  }, [handleListen]);
+
+  /**
+   * Synchronise le contenu de la fenêtre flottante avec l'état courant
+   */
+  useEffect(() => {
+    const pipWin = pipWindowRef.current;
+    if (!pipWin || pipWin.closed) return;
+    try {
+      const d = pipWin.document;
+      const statusText = d.getElementById('status-text');
+      const statusDot = d.getElementById('status-dot');
+      const micBtn = d.getElementById('mic-btn') as HTMLButtonElement | null;
+      const interimEl = d.getElementById('interim');
+      const previewEl = d.getElementById('preview');
+
+      if (statusText) statusText.textContent = isListening ? 'Écoute en cours' : 'Arrêté';
+      if (statusDot) {
+        (statusDot as HTMLElement).style.background = isListening ? '#ef4444' : '#64748b';
+        (statusDot as HTMLElement).style.animation = isListening ? 'pulse 1.5s infinite' : 'none';
+      }
+      if (micBtn) {
+        micBtn.style.background = isListening ? '#ef4444' : '#6366f1';
+      }
+      if (interimEl) interimEl.textContent = interimTranscript || '';
+      if (previewEl) previewEl.textContent = transcript ? transcript.slice(-150) : '';
+    } catch (e) {
+      console.warn('Mise à jour PiP ignorée:', e);
+    }
+  }, [isListening, interimTranscript, transcript]);
+
+  // Ferme la fenêtre flottante à la fermeture de la page
+  useEffect(() => {
+    return () => {
+      try { pipWindowRef.current?.close(); } catch {}
+      pipWindowRef.current = null;
+    };
   }, []);
 
   /**
@@ -1881,6 +1997,16 @@ Réponds UNIQUEMENT avec un objet JSON valide :
         >
           <MicrophoneIcon className="w-7 h-7 sm:w-6 sm:h-6 text-white" />
         </button>
+        {/* Bouton pour la fenêtre flottante (toujours visible) */}
+        <div className="mt-3 flex justify-end">
+          <button
+            onClick={openFloatingWindow}
+            className="px-3 py-1.5 rounded-full text-xs bg-white/80 backdrop-blur-sm text-slate-700 hover:bg-white shadow border border-slate-200"
+            title="Ouvrir une petite fenêtre flottante"
+          >
+            Fenêtre flottante
+          </button>
+        </div>
       </div>
 
 
