@@ -27,6 +27,29 @@ Dictée Magique est une application web de dictée interactive, optimisée pour 
    ```
    L'application sera accessible sur [http://localhost:3000](http://localhost:3000)
 
+## 🔑 Configuration de l'API Gemini
+
+L'application utilise l'API Google Gemini côté client via Vite. La clé doit être fournie dans une variable d'environnement exposée au navigateur, donc préfixée par `VITE_`.
+
+### Local
+- Crée un fichier `.env` à la racine du projet avec :
+  ```bash
+  VITE_GEMINI_API_KEY=ta_cle_gemini
+  ```
+- Redémarre le serveur de dev après ajout/modification de la clé.
+
+### Vercel
+Dans Project Settings > Environment Variables :
+- Key: `VITE_GEMINI_API_KEY`
+- Value: ta clé Gemini
+- Environments: `Production` (et `Preview` si souhaité)
+
+Redeploie ensuite le projet pour prendre en compte la variable.
+
+### Vérification
+- En dev, la console affiche « API Gemini initialisée avec succès » si la clé est valide.
+- Si la clé est absente/incorrecte, certaines fonctionnalités IA sont désactivées et un avertissement est loggé.
+
 ## 📱 Installation sur iPhone 12
 1. Ouvre l'application dans Safari sur ton iPhone 12
 2. Clique sur le bouton de partage (carré avec flèche)
@@ -38,6 +61,7 @@ Dictée Magique est une application web de dictée interactive, optimisée pour 
 - `npm run generate-splash` : Génère le splash screen iPhone 12 (1170x2532)
 - `npm run generate-assets` : Génère tous les assets PWA
 - `npm run build` : Build de production (output dans `dist/`)
+- `npm run preview` : Prévisualisation de la build locale
 
 ## ☁️ Déploiement sur Vercel
 1. Pousse le code sur GitHub
@@ -53,6 +77,10 @@ Dictée Magique est une application web de dictée interactive, optimisée pour 
 - `public/manifest.json` : Manifest PWA
 - `public/sw.js` : Service Worker
 - `scripts/` : Scripts de génération d'assets
+
+## 🧰 Dépannage
+- **L'IA ne répond pas en production** : vérifie que `VITE_GEMINI_API_KEY` est bien définie dans Vercel (avec le préfixe `VITE_`), puis redeploie.
+- **La dictée s'arrête au clic dans le champ** : corrigé, la reconnaissance n'est plus ré-initialisée sur changement de focus et l'icône micro reflète l'état réel.
 
 ## ✨ Personnalisation
 Pour d'autres appareils, adapte les scripts de génération d'assets et les balises dans `index.html`.
