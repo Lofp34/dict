@@ -320,8 +320,8 @@ const App: React.FC = () => {
    */
   const ai = useMemo(() => {
     try {
-      // Récupération de la clé API depuis les variables d'environnement
-      const apiKey = process.env.GEMINI_API_KEY;
+      // Récupération de la clé API depuis les variables d'environnement Vite
+      const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY as string | undefined;
       
       // Vérification que la clé API est présente et valide
       if (apiKey && apiKey !== 'your_gemini_api_key_here' && apiKey.trim() !== '') {
