@@ -660,7 +660,7 @@ IMPORTANT : Réponds UNIQUEMENT avec un objet JSON valide, sans backticks ni tex
 
 {
   "title": "Titre de la note",
-  "structuredText": "Texte reformulé et structuré",
+  "structuredText": "Texte reformulé et structuré, pas de formatage MD ou autre, texte brut mais avec des titres et des sous-titres, des listes numerotées ou non",
   "suggestions": ["Suggestion 1", "Suggestion 2", "Suggestion 3"]
 }
 `;
