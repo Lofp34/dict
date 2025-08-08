@@ -291,6 +291,12 @@ const App: React.FC = () => {
    * Utile pour repositionner le curseur après certaines actions
    */
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  /**
+   * Référence de l'identifiant du champ actif pour utilisation dans les callbacks
+   * Évite de recréer les gestionnaires SpeechRecognition quand le focus change
+   */
+  const activeInputIdRef = useRef<string | null>(null);
 
   // ============================================================================
   // INITIALISATION DE L'API GEMINI - INTELLIGENCE ARTIFICIELLE
@@ -410,6 +416,8 @@ const App: React.FC = () => {
       setIsListening(true);
       setError(null);
       isStoppingInternallyRef.current = false; 
+      // Synchroniser l'état visuel du bouton flottant avec l'état réel d'écoute
+      setIsFloatingListening(true);
     };
 
     /**
@@ -423,6 +431,8 @@ const App: React.FC = () => {
       // L'utilisateur peut vouloir le copier ou il peut devenir final au prochain démarrage
       // setInterimTranscript(''); 
       isStoppingInternallyRef.current = false;
+      // Assurer la cohérence du bouton micro si l'écoute s'interrompt
+      setIsFloatingListening(false);
     };
 
     /**
@@ -449,9 +459,10 @@ const App: React.FC = () => {
       
       // Traitement du texte final validé
       if (finalTranscriptChunk) {
-        // Redirection vers le chat si un chat est actif
-        if (activeInputId && activeInputId.startsWith('chat-')) {
-          const noteId = activeInputId.replace('chat-', '');
+        // Redirection vers le chat si un chat est actif (via ref pour éviter les re-inits)
+        const currentActiveId = activeInputIdRef.current;
+        if (currentActiveId && currentActiveId.startsWith('chat-')) {
+          const noteId = currentActiveId.replace('chat-', '');
           setChatInputs(prev => ({
             ...prev,
             [noteId]: (prev[noteId] || '') + finalTranscriptChunk
@@ -537,7 +548,7 @@ const App: React.FC = () => {
         recognitionRef.current = null;
       }
     };
-  }, [activeInputId]);
+  }, []);
 
 
   // ============================================================================
@@ -1300,6 +1311,7 @@ Réponds UNIQUEMENT avec un objet JSON valide :
    */
   const handleInputFocus = useCallback((inputId: string) => {
     setActiveInputId(inputId);
+    activeInputIdRef.current = inputId;
   }, []);
 
   /**
@@ -1308,6 +1320,7 @@ Réponds UNIQUEMENT avec un objet JSON valide :
    */
   const handleInputBlur = useCallback(() => {
     setActiveInputId(null);
+    activeInputIdRef.current = null;
   }, []);
 
   /**
